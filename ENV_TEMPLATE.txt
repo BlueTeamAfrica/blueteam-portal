@@ -1,0 +1,14 @@
+# Environment Variables Template
+
+Your Firebase configuration has been set up. The `.env.local` file should contain:
+
+```
+NEXT_PUBLIC_FIREBASE_API_KEY=AIzaSyBnuX5SwPHo7wOWiZybFl6zRLYceyLh3wI
+NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=blueteam-portal.firebaseapp.com
+NEXT_PUBLIC_FIREBASE_PROJECT_ID=blueteam-portal
+NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=blueteam-portal.firebasestorage.app
+NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=188069318759
+NEXT_PUBLIC_FIREBASE_APP_ID=1:188069318759:web:0fefa7a1a99ae2f39644c2
+```
+
+If the `.env.local` file doesn't exist, create it manually with the above values.

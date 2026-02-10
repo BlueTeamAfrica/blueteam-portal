@@ -1,0 +1,141 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{db}/documents {
+
+    // Helper function to get tenant billing plan ID
+    function getBillingPlanId(tenantId) {
+      let tenant = get(/databases/$(db)/documents/tenants/$(tenantId));
+      return tenant.data.subscription.plan != null 
+        ? tenant.data.subscription.plan 
+        : tenant.data.plan != null 
+        ? tenant.data.plan 
+        : tenant.data.billingPlanId != null 
+        ? tenant.data.billingPlanId 
+        : 'starter';
+    }
+
+    // Helper function to get plan permissions
+    function getPlanPermissions(tenantId) {
+      let billingPlanId = getBillingPlanId(tenantId);
+      let permissions = get(/databases/$(db)/documents/tenants/$(tenantId)/planPermissions/$(billingPlanId));
+      return permissions.data;
+    }
+
+    // Helper function to check if user has access to tenant
+    function hasTenantAccess(tenantId) {
+      return request.auth != null
+        && exists(/databases/$(db)/documents/userTenants/$(request.auth.uid + "_" + tenantId));
+    }
+
+    // Explicit helper for tenant subcollection read: user has a userTenants mapping for this tenant
+    function isTenantUser(tenantId) {
+      return request.auth != null
+        && exists(/databases/$(db)/documents/userTenants/$(request.auth.uid + "_" + tenantId));
+    }
+
+    // Client users: tenantId and clientId stored in users/{uid}, no userTenants required
+    function isClientWithTenantAccess(tenantId) {
+      return request.auth != null
+        && exists(/databases/$(db)/documents/users/$(request.auth.uid))
+        && get(/databases/$(db)/documents/users/$(request.auth.uid)).data.tenantId == tenantId
+        && get(/databases/$(db)/documents/users/$(request.auth.uid)).data.role == "client";
+    }
+
+    function getClientIdFromUser() {
+      return get(/databases/$(db)/documents/users/$(request.auth.uid)).data.clientId;
+    }
+
+    // Helper function to check if user has access (backward compatibility)
+    function hasTenantAccessLegacy() {
+      return request.auth != null
+        && exists(/databases/$(db)/documents/userTenants/$(request.auth.uid + "_blueteam"));
+    }
+
+    // Helper function to get user role
+    function getUserRole(tenantId) {
+      let userTenantId = request.auth.uid + "_" + tenantId;
+      let userTenant = get(/databases/$(db)/documents/userTenants/$(userTenantId));
+      return userTenant.data.role;
+    }
+
+    // Helper function to check if user is admin or owner
+    function isAdminOrOwner(tenantId) {
+      let role = getUserRole(tenantId);
+      return role == "admin" || role == "owner";
+    }
+
+    // Helper function to check if user is client
+    function isClient(tenantId) {
+      let role = getUserRole(tenantId);
+      return role == "client";
+    }
+
+    // Users collection: each user can read their own document
+    match /users/{userId} {
+      allow read: if request.auth != null && request.auth.uid == userId;
+      allow write: if request.auth != null && request.auth.uid == userId;
+    }
+
+    match /userTenants/{mapId} {
+      // Allow read if document ID matches userId_tenantId or userId_blueteam format
+      allow read: if request.auth != null
+        && (mapId == request.auth.uid + "_blueteam" || 
+            mapId.matches(request.auth.uid + "_" + ".*"));
+    }
+
+    match /tenants/{tenantId} {
+      allow read: if hasTenantAccess(tenantId) || hasTenantAccessLegacy()
+        || (request.auth != null && exists(/databases/$(db)/documents/users/$(request.auth.uid))
+            && get(/databases/$(db)/documents/users/$(request.auth.uid)).data.tenantId == tenantId);
+      
+      // Plan permissions subcollection
+      match /planPermissions/{planId} {
+        allow read: if hasTenantAccess(tenantId) || hasTenantAccessLegacy();
+      }
+
+      // Explicit: tenants/{tenantId}/clients/{clientId}
+      match /clients/{clientId} {
+        allow read, list: if isTenantUser(tenantId) || (isClientWithTenantAccess(tenantId) && clientId == getClientIdFromUser());
+        allow write: if (hasTenantAccess(tenantId) || hasTenantAccessLegacy()) && isAdminOrOwner(tenantId);
+      }
+
+      // Explicit: tenants/{tenantId}/projects/{projectId}
+      match /projects/{projectId} {
+        allow read, list: if isTenantUser(tenantId) || (isClientWithTenantAccess(tenantId) && resource.data.clientId == getClientIdFromUser());
+        allow write: if (hasTenantAccess(tenantId) || hasTenantAccessLegacy()) && isAdminOrOwner(tenantId);
+      }
+
+      // Services collection - enforce canServices flag and role
+      match /services/{serviceId} {
+        allow read: if hasTenantAccess(tenantId) || hasTenantAccessLegacy();
+        // Only admin/owner can write, and must have canServices permission
+        allow update, delete: if (hasTenantAccess(tenantId) || hasTenantAccessLegacy()) && isAdminOrOwner(tenantId);
+        allow create: if (hasTenantAccess(tenantId) || hasTenantAccessLegacy()) && isAdminOrOwner(tenantId) && (
+          let permissions = getPlanPermissions(tenantId);
+          permissions.canServices != false
+        );
+      }
+
+      // Explicit: tenants/{tenantId}/invoices/{invoiceId}
+      match /invoices/{invoiceId} {
+        allow read, list: if isTenantUser(tenantId) || (isClientWithTenantAccess(tenantId) && resource.data.clientId == getClientIdFromUser());
+        allow update, delete: if (hasTenantAccess(tenantId) || hasTenantAccessLegacy()) && isAdminOrOwner(tenantId);
+        allow create: if (hasTenantAccess(tenantId) || hasTenantAccessLegacy()) && isAdminOrOwner(tenantId) && (
+          let permissions = getPlanPermissions(tenantId);
+          permissions.canInvoices != false
+        );
+      }
+
+      // Explicit: tenants/{tenantId}/subscriptions/{subId}
+      match /subscriptions/{subId} {
+        allow read, list: if isTenantUser(tenantId) || (isClientWithTenantAccess(tenantId) && resource.data.clientId == getClientIdFromUser());
+        allow write: if (hasTenantAccess(tenantId) || hasTenantAccessLegacy()) && isAdminOrOwner(tenantId);
+      }
+
+      match /payments/{paymentId} {
+        allow read: if hasTenantAccess(tenantId) || hasTenantAccessLegacy();
+        allow write: if (hasTenantAccess(tenantId) || hasTenantAccessLegacy()) && isAdminOrOwner(tenantId);
+      }
+    }
+  }
+}
