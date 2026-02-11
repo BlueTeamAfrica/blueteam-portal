@@ -492,7 +492,7 @@ export default function InvoicesPage() {
       {invoices.length === 0 && (
         <div className="mt-6 bg-white rounded-xl shadow-sm border border-slate-200 p-12 text-center">
           <p className="text-slate-500 text-lg">No invoices yet</p>
-          <p className="text-slate-400 text-sm mt-1">Click "Add Invoice" to create your first invoice.</p>
+          <p className="text-slate-400 text-sm mt-1">Click &quot;Add Invoice&quot; to create your first invoice.</p>
         </div>
       )}
 

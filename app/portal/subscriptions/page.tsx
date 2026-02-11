@@ -282,7 +282,7 @@ export default function SubscriptionsPage() {
       {subscriptions.length === 0 ? (
         <div className="mt-6 bg-white rounded-xl shadow-sm border border-slate-200 p-12 text-center">
           <p className="text-slate-500 text-lg">No subscriptions yet</p>
-          <p className="text-slate-400 text-sm mt-1">Click "Add Subscription" to create your first subscription.</p>
+          <p className="text-slate-400 text-sm mt-1">Click &quot;Add Subscription&quot; to create your first subscription.</p>
         </div>
       ) : (
         <div className="mt-6 bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
