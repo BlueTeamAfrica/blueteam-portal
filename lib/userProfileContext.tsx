@@ -10,7 +10,10 @@ type UserProfileContextValue = {
   loading: boolean;
 };
 
-const UserProfileContext = createContext<UserProfileContextValue>({ role: undefined, loading: true });
+const UserProfileContext = createContext<UserProfileContextValue>({
+  role: undefined,
+  loading: true,
+});
 
 export function UserProfileProvider({ children }: { children: React.ReactNode }) {
   const { user } = useAuth();
@@ -25,6 +28,7 @@ export function UserProfileProvider({ children }: { children: React.ReactNode })
     }
 
     const uid = user.uid;
+
     async function load() {
       setLoading(true);
       try {
