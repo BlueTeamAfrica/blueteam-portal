@@ -24,10 +24,11 @@ export function UserProfileProvider({ children }: { children: React.ReactNode })
       return;
     }
 
+    const uid = user.uid;
     async function load() {
       setLoading(true);
       try {
-        const snap = await getDoc(doc(db, "users", user.uid));
+        const snap = await getDoc(doc(db, "users", uid));
         setRole(snap.data()?.role as string | undefined);
       } finally {
         setLoading(false);
