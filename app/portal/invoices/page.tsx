@@ -1,3 +1,4 @@
+/* eslint-disable react/no-unescaped-entities */
 "use client";
 
 import { useEffect, useState } from "react";
@@ -205,7 +206,7 @@ export default function InvoicesPage() {
           attempted: true,
           sent: false,
           to: null,
-          error: { message: err instanceof Error ? err.message : String(err), code: null, response: null, responseCode: null, command: null },
+          error: { message: err instanceof Error ? err.message : String(err), code: null, response: null, responseCode: null },
         },
       });
     } finally {
@@ -510,13 +511,13 @@ export default function InvoicesPage() {
             </h3>
             {generateResult.isTestEmail ? (
               <>
-                {generateResult.email?.sent ? (
-                  <p className="text-sm text-emerald-600">Test email sent to {generateResult.email.to ?? "owner"}</p>
+                {"sent" in (generateResult.email ?? {}) && (generateResult.email as { sent: boolean }).sent ? (
+                  <p className="text-sm text-emerald-600">Test email sent to {(generateResult.email as { to?: string | null }).to ?? "owner"}</p>
                 ) : (
                   <p className="text-sm text-red-600">
-                    {generateResult.email?.error?.message ||
-                      (generateResult.email?.error?.responseCode != null || generateResult.email?.error?.response
-                        ? [generateResult.email?.error?.responseCode, generateResult.email?.error?.response]
+                    {(generateResult.email as { error?: { message?: string; responseCode?: unknown; response?: string | null } })?.error?.message ||
+                      ((generateResult.email as { error?: { responseCode?: unknown; response?: string | null } })?.error?.responseCode != null || (generateResult.email as { error?: { response?: string | null } })?.error?.response
+                        ? [(generateResult.email as { error?: { responseCode?: unknown } })?.error?.responseCode, (generateResult.email as { error?: { response?: string | null } })?.error?.response]
                             .filter(Boolean)
                             .join(" ")
                         : null) ||
