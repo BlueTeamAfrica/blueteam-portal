@@ -27,8 +27,10 @@ export function TenantProvider({ children }: { children: React.ReactNode }) {
       return;
     }
 
+    const uid = user.uid;
+
     async function loadTenant() {
-      const userSnap = await getDoc(doc(db, "users", user.uid));
+      const userSnap = await getDoc(doc(db, "users", uid));
       const userData = userSnap.data();
       const userRole = userData?.role as string | undefined;
 
@@ -50,7 +52,7 @@ export function TenantProvider({ children }: { children: React.ReactNode }) {
 
       const q = query(
         collection(db, "userTenants"),
-        where("userId", "==", user.uid)
+        where("userId", "==", uid)
       );
       const snap = await getDocs(q);
       if (snap.empty) {
