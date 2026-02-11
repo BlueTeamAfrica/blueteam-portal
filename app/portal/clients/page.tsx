@@ -17,7 +17,8 @@ export default function ClientsPage() {
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
-    if (!user || !tenant?.id) {
+    const tenantId = tenant?.id;
+    if (!user || !tenantId) {
       setLoading(false);
       return;
     }
@@ -25,7 +26,7 @@ export default function ClientsPage() {
     async function loadClients() {
       setLoading(true);
       try {
-        const snap = await getDocs(collection(db, "tenants", tenant.id, "clients"));
+        const snap = await getDocs(collection(db, "tenants", tenantId as string, "clients"));
         setClients(
           snap.docs.map((d) => ({
             id: d.id,
@@ -44,12 +45,13 @@ export default function ClientsPage() {
 
   async function handleAddClient(e: React.FormEvent) {
     e.preventDefault();
-    if (!tenant?.id) return;
+    const tenantId = tenant?.id;
+    if (!tenantId) return;
     if (!name.trim() || !email.trim()) return;
 
     setSubmitting(true);
     try {
-      await addDoc(collection(db, "tenants", tenant.id, "clients"), {
+      await addDoc(collection(db, "tenants", tenantId, "clients"), {
         name: name.trim(),
         email: email.trim(),
         status: "active",
@@ -60,7 +62,7 @@ export default function ClientsPage() {
       setEmail("");
       setShowForm(false);
 
-      const snap = await getDocs(collection(db, "tenants", tenant.id, "clients"));
+      const snap = await getDocs(collection(db, "tenants", tenantId as string, "clients"));
       setClients(
         snap.docs.map((d) => ({
           id: d.id,

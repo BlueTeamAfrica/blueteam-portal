@@ -20,7 +20,8 @@ export default function PortalPage() {
   const [loadingKpis, setLoadingKpis] = useState(true);
 
   useEffect(() => {
-    if (!user || !tenant?.id) {
+    const tenantId = tenant?.id;
+    if (!user || !tenantId) {
       setLoadingKpis(false);
       return;
     }
@@ -29,16 +30,16 @@ export default function PortalPage() {
       setLoadingKpis(true);
       try {
         // Total clients
-        const clientsSnap = await getDocs(collection(db, "tenants", tenant.id, "clients"));
+        const clientsSnap = await getDocs(collection(db, "tenants", tenantId as string, "clients"));
         const totalClients = clientsSnap.size;
 
         // Total projects
-        const projectsSnap = await getDocs(collection(db, "tenants", tenant.id, "projects"));
+        const projectsSnap = await getDocs(collection(db, "tenants", tenantId as string, "projects"));
         const totalProjects = projectsSnap.size;
 
         // Unpaid invoices (count + value)
         const unpaidQuery = query(
-          collection(db, "tenants", tenant.id, "invoices"),
+          collection(db, "tenants", tenantId as string, "invoices"),
           where("status", "==", "unpaid")
         );
         const unpaidSnap = await getDocs(unpaidQuery);

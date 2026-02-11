@@ -51,9 +51,10 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Not authorized" }, { status: 403 });
     }
 
+    const settingsRef = db.collection("tenants").doc(tenantId).collection("settings").doc("emailTest");
+
     // Anti-spam: check last sent (skip when explicit recipient provided)
     if (!bodyTo) {
-      const settingsRef = db.collection("tenants").doc(tenantId).collection("settings").doc("emailTest");
       const settingsSnap = await settingsRef.get();
       const lastSentAt = settingsSnap.data()?.lastSentAt?.toDate?.() as Date | undefined;
       if (lastSentAt) {

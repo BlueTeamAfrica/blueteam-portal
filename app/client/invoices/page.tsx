@@ -25,7 +25,8 @@ export default function ClientInvoicesPage() {
 
   useEffect(() => {
     setError(null);
-    if (!user || !tenant?.id || role !== "client" || !clientId) {
+    const tenantId = tenant?.id;
+    if (!user || !tenantId || role !== "client" || !clientId) {
       setLoading(false);
       return;
     }
@@ -34,7 +35,7 @@ export default function ClientInvoicesPage() {
       setLoading(true);
       try {
         const q = query(
-          collection(db, "tenants", tenant.id, "invoices"),
+          collection(db, "tenants", tenantId as string, "invoices"),
           where("clientId", "==", clientId)
         );
         const snap = await getDocs(q);

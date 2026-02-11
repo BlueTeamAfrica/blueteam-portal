@@ -19,7 +19,9 @@ export default function ClientDashboardPage() {
 
   useEffect(() => {
     setError(null);
-    if (!user || !tenant?.id || role !== "client" || !clientId) {
+    const tenantId: string | undefined = tenant?.id;
+    const clientIdStr: string | undefined = clientId;
+    if (!user || !tenantId || role !== "client" || !clientIdStr) {
       setLoading(false);
       return;
     }
@@ -27,24 +29,24 @@ export default function ClientDashboardPage() {
     async function load() {
       setLoading(true);
       try {
-        const clientDoc = await getDoc(doc(db, "tenants", tenant.id, "clients", clientId));
+        const clientDoc = await getDoc(doc(db, "tenants", tenantId as string, "clients", clientIdStr as string));
         setClientName((clientDoc.data()?.name as string) ?? "Client");
 
         const projectsQuery = query(
-          collection(db, "tenants", tenant.id, "projects"),
-          where("clientId", "==", clientId)
+          collection(db, "tenants", tenantId as string, "projects"),
+          where("clientId", "==", clientIdStr)
         );
         const projectsSnap = await getDocs(projectsQuery);
         const projects = projectsSnap.docs.map((d) => ({ status: d.data().status }));
         setActiveProjects(projects.filter((p) => p.status === "active").length);
 
         const allInvoicesQuery = query(
-          collection(db, "tenants", tenant.id, "invoices"),
-          where("clientId", "==", clientId)
+          collection(db, "tenants", tenantId as string, "invoices"),
+          where("clientId", "==", clientIdStr)
         );
         const unpaidQuery = query(
-          collection(db, "tenants", tenant.id, "invoices"),
-          where("clientId", "==", clientId),
+          collection(db, "tenants", tenantId as string, "invoices"),
+          where("clientId", "==", clientIdStr),
           where("status", "==", "unpaid")
         );
         const [allSnap, unpaidSnap] = await Promise.all([

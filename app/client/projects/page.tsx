@@ -18,7 +18,8 @@ export default function ClientProjectsPage() {
 
   useEffect(() => {
     setError(null);
-    if (!user || !tenant?.id || role !== "client" || !clientId) {
+    const tenantId = tenant?.id;
+    if (!user || !tenantId || role !== "client" || !clientId) {
       setLoading(false);
       return;
     }
@@ -27,7 +28,7 @@ export default function ClientProjectsPage() {
       setLoading(true);
       try {
         const q = query(
-          collection(db, "tenants", tenant.id, "projects"),
+          collection(db, "tenants", tenantId as string, "projects"),
           where("clientId", "==", clientId)
         );
         const snap = await getDocs(q);

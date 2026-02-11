@@ -28,7 +28,8 @@ export default function ClientSubscriptionsPage() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!user || !tenant?.id || role !== "client" || !clientId) {
+    const tenantId = tenant?.id;
+    if (!user || !tenantId || role !== "client" || !clientId) {
       setLoading(false);
       return;
     }
@@ -38,7 +39,7 @@ export default function ClientSubscriptionsPage() {
       setError(null);
       try {
         const q = query(
-          collection(db, "tenants", tenant.id, "subscriptions"),
+          collection(db, "tenants", tenantId as string, "subscriptions"),
           where("clientId", "==", clientId)
         );
         const snap = await getDocs(q);

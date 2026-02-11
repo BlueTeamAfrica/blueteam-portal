@@ -21,7 +21,8 @@ export default function ProjectsPage() {
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
-    if (!user || !tenant?.id) {
+    const tenantId = tenant?.id;
+    if (!user || !tenantId) {
       setLoading(false);
       return;
     }
@@ -30,8 +31,8 @@ export default function ProjectsPage() {
       setLoading(true);
       try {
         const [clientsSnap, projectsSnap] = await Promise.all([
-          getDocs(collection(db, "tenants", tenant.id, "clients")),
-          getDocs(collection(db, "tenants", tenant.id, "projects")),
+          getDocs(collection(db, "tenants", tenantId as string, "clients")),
+          getDocs(collection(db, "tenants", tenantId as string, "projects")),
         ]);
         setClients(
           clientsSnap.docs.map((d) => ({
@@ -60,7 +61,8 @@ export default function ProjectsPage() {
 
   async function handleAddProject(e: React.FormEvent) {
     e.preventDefault();
-    if (!tenant?.id) return;
+    const tenantId = tenant?.id;
+    if (!tenantId) return;
     if (!name.trim() || !clientId) return;
 
     const selectedClient = clients.find((c) => c.id === clientId);
@@ -68,7 +70,7 @@ export default function ProjectsPage() {
 
     setSubmitting(true);
     try {
-      await addDoc(collection(db, "tenants", tenant.id, "projects"), {
+      await addDoc(collection(db, "tenants", tenantId, "projects"), {
         name: name.trim(),
         clientId,
         clientName,
@@ -81,7 +83,7 @@ export default function ProjectsPage() {
       setClientId("");
       setShowForm(false);
 
-      const snap = await getDocs(collection(db, "tenants", tenant.id, "projects"));
+      const snap = await getDocs(collection(db, "tenants", tenantId, "projects"));
       setProjects(
         snap.docs.map((d) => ({
           id: d.id,
