@@ -254,7 +254,7 @@ export async function generateDueInvoicesForTenant(tenantId: string): Promise<Ge
           sent: false,
           error: err?.message || String(e),
           code: err?.code ?? null,
-          response: err?.response ?? null,
+          response: err?.response ?? undefined,
         });
         console.error("Client email failed:", clientId, e);
       }
