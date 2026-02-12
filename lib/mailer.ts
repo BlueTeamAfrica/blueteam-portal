@@ -30,19 +30,53 @@ export async function sendAdminInvoiceEmail({
   // Verify SMTP connection (prints useful errors if blocked)
   await transporter.verify();
 
-  const subject = `Invoices Generated – ${tenantName}`;
-  const text =
-    `Invoices have been generated for ${tenantName}.\n\n` +
-    `Generated: ${generated}\n` +
-    `Skipped: ${skipped}\n` +
-    `Errors: ${errors}\n\n` +
-    `Login to the portal to review invoices.\n`;
+  const portalUrl = process.env.NEXT_PUBLIC_PORTAL_URL || "https://portal.blueteamafrica.com";
 
   const info = await transporter.sendMail({
-    from: `"Blue Team Portal" <${user}>`,
+    from: `"Blue Team Portal" <${process.env.SMTP_USER}>`,
     to,
-    subject,
-    text,
+    subject: "Invoices Generated – Blue Team Africa",
+    text: `
+Invoices have been generated for Blue Team Africa.
+
+Generated: ${generated}
+Skipped: ${skipped}
+Errors: ${errors}
+
+Login to the portal: ${portalUrl}/login
+  `,
+    html: `
+    <div style="font-family: Arial, sans-serif; line-height: 1.6;">
+      <h2>Invoices Generated – Blue Team Africa</h2>
+
+      <p>Invoices have been generated.</p>
+
+      <ul>
+        <li><strong>Generated:</strong> ${generated}</li>
+        <li><strong>Skipped:</strong> ${skipped}</li>
+        <li><strong>Errors:</strong> ${errors}</li>
+      </ul>
+
+      <p>
+        <a href="${portalUrl}/login"
+           style="
+             display:inline-block;
+             padding:10px 16px;
+             background:#3b5bdb;
+             color:white;
+             text-decoration:none;
+             border-radius:6px;
+             font-weight:bold;
+           ">
+          Login to Portal
+        </a>
+      </p>
+
+      <p style="font-size:12px;color:#888;">
+        ${portalUrl}/login
+      </p>
+    </div>
+  `,
   });
 
   return info; // return nodemailer response so API can log it
