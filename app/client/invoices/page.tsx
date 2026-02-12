@@ -22,6 +22,7 @@ export default function ClientInvoicesPage() {
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [downloadingPdfId, setDownloadingPdfId] = useState<string | null>(null);
 
   useEffect(() => {
     setError(null);
@@ -61,6 +62,27 @@ export default function ClientInvoicesPage() {
 
     load();
   }, [user, tenant?.id, role, clientId]);
+
+  async function handleDownloadPdf(inv: Invoice) {
+    if (!user) return;
+    setDownloadingPdfId(inv.id);
+    try {
+      const token = await user.getIdToken();
+      const res = await fetch(`/api/invoices/${inv.id}/pdf`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) throw new Error("Failed to download PDF");
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${inv.invoiceNumber ?? `INV-${inv.id}`}.pdf`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } finally {
+      setDownloadingPdfId(null);
+    }
+  }
 
   if (!user) return <p className="text-[#0F172A]">Please log in</p>;
   if (!tenant) return <p className="text-[#0F172A]">Loading tenant…</p>;
@@ -112,6 +134,7 @@ export default function ClientInvoicesPage() {
                 <th className="text-left py-3 px-4 text-sm font-medium text-[#0F172A]">Invoice #</th>
                 <th className="text-left py-3 px-4 text-sm font-medium text-[#0F172A]">Status</th>
                 <th className="text-right py-3 px-4 text-sm font-medium text-[#0F172A]">Amount</th>
+                <th className="text-right py-3 px-4 text-sm font-medium text-[#0F172A]">Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -123,6 +146,16 @@ export default function ClientInvoicesPage() {
                   </td>
                   <td className="py-3 px-4 text-right text-[#0F172A]">
                     {inv.amount != null ? `$${inv.amount.toLocaleString()}` : "—"}
+                  </td>
+                  <td className="py-3 px-4 text-right">
+                    <button
+                      type="button"
+                      disabled={downloadingPdfId === inv.id}
+                      onClick={() => handleDownloadPdf(inv)}
+                      className="text-sm text-[#4F46E5] hover:underline disabled:opacity-50"
+                    >
+                      {downloadingPdfId === inv.id ? "Downloading…" : "Download PDF"}
+                    </button>
                   </td>
                 </tr>
               ))}
