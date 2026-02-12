@@ -30,50 +30,50 @@ export async function sendAdminInvoiceEmail({
   // Verify SMTP connection (prints useful errors if blocked)
   await transporter.verify();
 
-  const portalUrl = process.env.NEXT_PUBLIC_PORTAL_URL || "https://portal.blueteamafrica.com";
+  const portalBase =
+    (process.env.NEXT_PUBLIC_PORTAL_URL ||
+      process.env.PORTAL_BASE_URL ||
+      "https://portal.blueteamafrica.com").replace(/\/$/, "");
+
+  const loginUrl = `${portalBase}/login`;
+
+  console.log("EMAIL DEBUG:", { to, subject: "Invoices Generated", loginUrl, hasHtml: true });
 
   const info = await transporter.sendMail({
     from: `"Blue Team Portal" <${process.env.SMTP_USER}>`,
     to,
     subject: "Invoices Generated – Blue Team Africa",
-    text: `
-Invoices have been generated for Blue Team Africa.
 
-Generated: ${generated}
-Skipped: ${skipped}
-Errors: ${errors}
+    // ✅ TEXT: forces auto-linking in most clients
+    text: [
+      `Invoices have been generated for Blue Team Africa.`,
+      ``,
+      `Generated: ${generated}`,
+      `Skipped: ${skipped}`,
+      `Errors: ${errors}`,
+      ``,
+      `Login to the portal: <${loginUrl}>`,
+      `${loginUrl}`,
+    ].join("\n"),
 
-Login to the portal: ${portalUrl}/login
-  `,
+    // ✅ HTML: proper clickable link + button
     html: `
     <div style="font-family: Arial, sans-serif; line-height: 1.6;">
       <h2>Invoices Generated – Blue Team Africa</h2>
-
       <p>Invoices have been generated.</p>
-
       <ul>
         <li><strong>Generated:</strong> ${generated}</li>
         <li><strong>Skipped:</strong> ${skipped}</li>
         <li><strong>Errors:</strong> ${errors}</li>
       </ul>
-
       <p>
-        <a href="${portalUrl}/login"
-           style="
-             display:inline-block;
-             padding:10px 16px;
-             background:#3b5bdb;
-             color:white;
-             text-decoration:none;
-             border-radius:6px;
-             font-weight:bold;
-           ">
+        <a href="${loginUrl}">${loginUrl}</a>
+      </p>
+      <p>
+        <a href="${loginUrl}"
+           style="display:inline-block;padding:10px 16px;background:#3b5bdb;color:#fff;text-decoration:none;border-radius:6px;font-weight:bold;">
           Login to Portal
         </a>
-      </p>
-
-      <p style="font-size:12px;color:#888;">
-        ${portalUrl}/login
       </p>
     </div>
   `,
