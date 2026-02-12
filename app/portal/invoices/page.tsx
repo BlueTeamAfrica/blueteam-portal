@@ -38,7 +38,6 @@ export default function InvoicesPage() {
 
   // Status update loading
   const [updatingId, setUpdatingId] = useState<string | null>(null);
-  const [downloadingPdfId, setDownloadingPdfId] = useState<string | null>(null);
 
   // Generate due invoices
   const [generating, setGenerating] = useState(false);
@@ -283,26 +282,36 @@ export default function InvoicesPage() {
     }
   }
 
-  async function handleDownloadPdf(inv: Invoice) {
-    if (!user) return;
-    setDownloadingPdfId(inv.id);
-    try {
-      const token = await user.getIdToken();
-      const res = await fetch(`/api/invoices/${inv.id}/pdf`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (!res.ok) throw new Error("Failed to download PDF");
-      const blob = await res.blob();
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `${inv.invoiceNumber ?? `INV-${inv.id}`}.pdf`;
-      a.click();
-      URL.revokeObjectURL(url);
-    } finally {
-      setDownloadingPdfId(null);
+  const downloadPdf = async (inv: Invoice) => {
+    const idToken = await user?.getIdToken();
+    if (!idToken) return;
+
+    const invoiceId = inv.id || (inv as { invoiceId?: string }).invoiceId || (inv as { docId?: string }).docId;
+    if (!invoiceId) {
+      alert("Missing invoice id on this row.");
+      return;
     }
-  }
+
+    const res = await fetch(`/api/invoices/${invoiceId}/pdf`, {
+      headers: { Authorization: `Bearer ${idToken}` },
+    });
+
+    if (!res.ok) {
+      const txt = await res.text();
+      alert(`PDF download failed (${res.status}): ${txt}`);
+      return;
+    }
+
+    const blob = await res.blob();
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${(inv as { number?: string }).number ?? inv.invoiceNumber ?? "invoice"}.pdf`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    window.URL.revokeObjectURL(url);
+  };
 
   function StatusBadge({ status }: { status?: string }) {
     const s = (status ?? "").toLowerCase();
@@ -462,7 +471,7 @@ export default function InvoicesPage() {
               <th className="text-right py-3 px-4 text-sm font-medium text-[#0F172A]">Amount</th>
               <th className="text-left py-3 px-4 text-sm font-medium text-[#0F172A]">Due Date</th>
               <th className="text-left py-3 px-4 text-sm font-medium text-[#0F172A]">Status</th>
-              <th className="text-right py-3 px-4 text-sm font-medium text-[#0F172A]">Actions</th>
+              <th className="text-right">Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -492,29 +501,26 @@ export default function InvoicesPage() {
                 <td className="py-3 px-4">
                   <StatusBadge status={inv.status} />
                 </td>
-                <td className="py-3 px-4 text-right">
-                  <div className="flex items-center justify-end gap-2">
-                    <button
-                      type="button"
-                      disabled={downloadingPdfId === inv.id}
-                      onClick={() => handleDownloadPdf(inv)}
-                      className="text-sm text-[#4F46E5] hover:underline disabled:opacity-50"
-                    >
-                      {downloadingPdfId === inv.id ? "Downloading…" : "Download PDF"}
-                    </button>
-                    <button
-                      type="button"
-                      disabled={updatingId === inv.id}
-                      onClick={() => handleToggleStatus(inv)}
-                      className="text-sm text-[#4F46E5] hover:underline disabled:opacity-50"
-                    >
-                      {updatingId === inv.id
-                        ? "Updating…"
-                        : inv.status === "paid"
-                          ? "Mark Unpaid"
-                          : "Mark Paid"}
-                    </button>
-                  </div>
+                <td className="text-right">
+                  <button
+                    type="button"
+                    className="text-blue-600 hover:underline"
+                    onClick={() => downloadPdf(inv)}
+                  >
+                    Download PDF
+                  </button>
+                  <button
+                    type="button"
+                    disabled={updatingId === inv.id}
+                    onClick={() => handleToggleStatus(inv)}
+                    className="ml-2 text-sm text-[#4F46E5] hover:underline disabled:opacity-50"
+                  >
+                    {updatingId === inv.id
+                      ? "Updating…"
+                      : inv.status === "paid"
+                        ? "Mark Unpaid"
+                        : "Mark Paid"}
+                  </button>
                 </td>
               </tr>
             ))}
