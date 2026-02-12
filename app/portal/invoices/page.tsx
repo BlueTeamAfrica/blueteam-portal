@@ -298,7 +298,7 @@ export default function InvoicesPage() {
 
     if (!res.ok) {
       const txt = await res.text();
-      alert(`PDF download failed (${res.status}): ${txt}`);
+      alert("PDF download failed (" + res.status + "): " + txt);
       return;
     }
 
