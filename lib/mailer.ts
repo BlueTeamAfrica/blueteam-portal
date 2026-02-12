@@ -91,14 +91,30 @@ export async function sendClientInvoicesEmail({
   to: string;
   clientName: string;
   tenantName: string;
-  items: Array<{ invoiceLabel: string; amount: number; currency: string; dueDate: string }>;
+  items: Array<{
+    invoiceId: string;
+    invoiceLabel: string;
+    amount: number;
+    currency: string;
+    dueDate: string;
+  }>;
 }) {
   await transporter.verify();
+
+  // Set PORTAL_BASE_URL in Vercel Production (e.g. https://portal.blueteamafrica.com) for correct links
+  const base = (process.env.PORTAL_BASE_URL || "https://portal.blueteamafrica.com").replace(
+    /\/$/,
+    ""
+  );
+  const pdfUrl = (id: string) => `${base}/api/invoices/${id}/pdf`;
 
   const subject = `New invoice(s) available – ${tenantName}`;
 
   const lines = items
-    .map((i) => `- ${i.invoiceLabel} | ${i.currency} ${i.amount} | Due: ${i.dueDate}`)
+    .map(
+      (i) =>
+        `- ${i.invoiceLabel} | ${i.currency} ${i.amount} | Due: ${i.dueDate}\n  PDF: <${pdfUrl(i.invoiceId)}>`
+    )
     .join("\n");
 
   const text =
@@ -108,12 +124,33 @@ export async function sendClientInvoicesEmail({
     `Please login to the client portal to view details.\n\n` +
     `— Blue Team Portal\n`;
 
+  const htmlItems = items
+    .map(
+      (i) => `
+  <li style="margin-bottom:10px;">
+    <div><strong>${i.invoiceLabel}</strong> — ${i.currency} ${i.amount} — Due: ${i.dueDate}</div>
+    <div><a href="${pdfUrl(i.invoiceId)}">Download PDF</a></div>
+  </li>
+`
+    )
+    .join("");
+
   const info = await transporter.sendMail({
     from: `"Blue Team Portal" <${user}>`,
     replyTo: user ?? undefined,
     to,
     subject,
     text,
+    html: `
+  <div style="font-family: Arial, sans-serif; line-height: 1.6;">
+    <p>Hello ${clientName},</p>
+    <p>New invoice(s) have been generated for you by ${tenantName}:</p>
+    <ul>${htmlItems}</ul>
+    <p>
+      <a href="${base}/login">Login to the portal</a>
+    </p>
+  </div>
+`,
   });
 
   return info;

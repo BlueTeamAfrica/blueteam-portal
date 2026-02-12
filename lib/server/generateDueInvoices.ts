@@ -88,7 +88,13 @@ export async function generateDueInvoicesForTenant(tenantId: string): Promise<Ge
 
   const createdInvoicesByClient: Record<
     string,
-    Array<{ invoiceLabel: string; amount: number; currency: string; dueDate: string }>
+    Array<{
+      invoiceId: string;
+      invoiceLabel: string;
+      amount: number;
+      currency: string;
+      dueDate: string;
+    }>
   > = {};
 
   for (const subDoc of dueSnap.docs) {
@@ -177,6 +183,7 @@ export async function generateDueInvoicesForTenant(tenantId: string): Promise<Ge
 
         if (!createdInvoicesByClient[sub.clientId]) createdInvoicesByClient[sub.clientId] = [];
         createdInvoicesByClient[sub.clientId].push({
+          invoiceId: invoiceRef.id,
           invoiceLabel,
           amount: sub.price ?? 0,
           currency: sub.currency || "USD",
