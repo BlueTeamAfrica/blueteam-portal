@@ -180,9 +180,9 @@ export default function SubscriptionsPage() {
   if (loading) return <p className="text-[#0F172A]">Loading subscriptions…</p>;
 
   return (
-    <div>
-      <div className="flex items-center justify-between">
-        <h1 className="text-[#0F172A] text-2xl font-semibold">Subscriptions</h1>
+    <div className="max-w-full">
+      <div className="flex items-center justify-between flex-wrap gap-2">
+        <h1 className="text-[#0F172A] text-2xl font-semibold break-words">Subscriptions</h1>
         <button
           type="button"
           onClick={() => setShowForm((v) => !v)}
@@ -285,8 +285,9 @@ export default function SubscriptionsPage() {
           <p className="text-slate-400 text-sm mt-1">Click {"\"Add Subscription\""} to create your first subscription.</p>
         </div>
       ) : (
-        <div className="mt-6 bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-          <table className="w-full border-collapse">
+        <div className="mt-6 bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden max-w-full">
+          <div className="w-full overflow-x-auto">
+            <table className="min-w-[900px] w-full border-collapse">
             <thead>
               <tr className="border-b border-slate-200 bg-slate-50">
                 <th className="text-left py-3 px-4 text-sm font-medium text-[#0F172A]">Name</th>
@@ -409,7 +410,8 @@ export default function SubscriptionsPage() {
                 </tr>
               ))}
             </tbody>
-          </table>
+            </table>
+          </div>
         </div>
       )}
     </div>

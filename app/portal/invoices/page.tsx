@@ -341,9 +341,9 @@ export default function InvoicesPage() {
   if (loading) return <p className="text-[#0F172A]">Loading invoices…</p>;
 
   return (
-    <div>
-      <div className="flex items-center justify-between">
-        <h1 className="text-[#0F172A] text-2xl font-semibold">Invoices</h1>
+    <div className="max-w-full">
+      <div className="flex items-center justify-between flex-wrap gap-2">
+        <h1 className="text-[#0F172A] text-2xl font-semibold break-words">Invoices</h1>
         <div className="flex gap-2 flex-wrap">
           <button
             type="button"
@@ -462,8 +462,9 @@ export default function InvoicesPage() {
         </form>
       )}
 
-      <div className="mt-6 bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-        <table className="w-full border-collapse">
+      <div className="mt-6 bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden max-w-full">
+        <div className="w-full overflow-x-auto">
+          <table className="min-w-[900px] w-full border-collapse">
           <thead>
             <tr className="border-b border-slate-200 bg-slate-50">
               <th className="text-left py-3 px-4 text-sm font-medium text-[#0F172A]">Invoice #</th>
@@ -525,7 +526,8 @@ export default function InvoicesPage() {
               </tr>
             ))}
           </tbody>
-        </table>
+          </table>
+        </div>
       </div>
       {invoices.length === 0 && (
         <div className="mt-6 bg-white rounded-xl shadow-sm border border-slate-200 p-12 text-center">

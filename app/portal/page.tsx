@@ -71,9 +71,9 @@ export default function PortalPage() {
   if (!tenant) return <p className="text-[#0F172A]">Loading tenant…</p>;
 
   return (
-    <div>
-      <h1 className="text-[#0F172A] text-2xl font-semibold">Dashboard</h1>
-      <p className="text-slate-600 mt-1">{tenant.name}</p>
+    <div className="max-w-full">
+      <h1 className="text-[#0F172A] text-2xl font-semibold break-words">Dashboard</h1>
+      <p className="text-slate-600 mt-1 break-words">{tenant.name}</p>
       <p className="text-slate-500 text-sm">{tenant.status}</p>
 
       <div className="mt-6">

@@ -103,8 +103,8 @@ export default function ProjectsPage() {
   if (loading) return <p className="text-[#0F172A]">Loading projects…</p>;
 
   return (
-    <div>
-      <h1 className="text-[#0F172A] text-2xl font-semibold">Projects</h1>
+    <div className="max-w-full">
+      <h1 className="text-[#0F172A] text-2xl font-semibold break-words">Projects</h1>
 
       <div className="mt-4 mb-4">
         <button
@@ -149,8 +149,9 @@ export default function ProjectsPage() {
         </form>
       )}
 
-      <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-        <table className="w-full border-collapse">
+      <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden max-w-full">
+        <div className="w-full overflow-x-auto">
+          <table className="min-w-[800px] w-full border-collapse">
           <thead>
             <tr className="border-b border-slate-200 bg-slate-50">
               <th className="text-left py-3 px-4 text-sm font-medium text-[#0F172A]">Project Name</th>
@@ -167,7 +168,8 @@ export default function ProjectsPage() {
               </tr>
             ))}
           </tbody>
-        </table>
+          </table>
+        </div>
       </div>
       {projects.length === 0 && <p className="mt-4 text-slate-500">No projects.</p>}
     </div>
