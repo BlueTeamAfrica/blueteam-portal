@@ -38,6 +38,7 @@ export default function InvoicesPage() {
 
   // Status update loading
   const [updatingId, setUpdatingId] = useState<string | null>(null);
+  const [downloadingPdfId, setDownloadingPdfId] = useState<string | null>(null);
 
   // Generate due invoices
   const [generating, setGenerating] = useState(false);
@@ -283,8 +284,15 @@ export default function InvoicesPage() {
   }
 
   const downloadPdf = async (inv: Invoice) => {
-    const idToken = await user?.getIdToken();
-    if (!idToken) return;
+    if (!user) {
+      alert("Please log in to download the PDF.");
+      return;
+    }
+    const idToken = await user.getIdToken();
+    if (!idToken) {
+      alert("Please log in again to download the PDF.");
+      return;
+    }
 
     const invoiceId = inv.id || (inv as { invoiceId?: string }).invoiceId || (inv as { docId?: string }).docId;
     if (!invoiceId) {
@@ -292,25 +300,51 @@ export default function InvoicesPage() {
       return;
     }
 
-    const res = await fetch(`/api/invoices/${invoiceId}/pdf`, {
-      headers: { Authorization: `Bearer ${idToken}` },
-    });
+    setDownloadingPdfId(inv.id);
+    try {
+      const res = await fetch(`/api/invoices/${invoiceId}/pdf`, {
+        method: "GET",
+        headers: { Authorization: `Bearer ${idToken}` },
+      });
 
-    if (!res.ok) {
-      const txt = await res.text();
-      alert("PDF download failed (" + res.status + "): " + txt);
-      return;
+      if (!res.ok) {
+        const contentType = res.headers.get("content-type") || "";
+        let message = "PDF download failed.";
+        if (contentType.includes("application/json")) {
+          try {
+            const data = await res.json();
+            message = (data && typeof data.error === "string") ? data.error : message;
+          } catch {
+            message = await res.text() || message;
+          }
+        } else {
+          message = await res.text() || message;
+        }
+        alert(message);
+        return;
+      }
+
+      const blob = await res.blob();
+      const disposition = res.headers.get("Content-Disposition");
+      let filename = (inv as { number?: string }).number ?? inv.invoiceNumber ?? "invoice";
+      if (typeof filename !== "string") filename = "invoice";
+      if (!filename.toLowerCase().endsWith(".pdf")) filename += ".pdf";
+      const match = disposition && /filename="?([^";\n]+)"?/.exec(disposition);
+      if (match && match[1]) filename = match[1].trim();
+
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      alert("Download failed: " + (err instanceof Error ? err.message : "Network error"));
+    } finally {
+      setDownloadingPdfId(null);
     }
-
-    const blob = await res.blob();
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `${(inv as { number?: string }).number ?? inv.invoiceNumber ?? "invoice"}.pdf`;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    window.URL.revokeObjectURL(url);
   };
 
   function StatusBadge({ status }: { status?: string }) {
@@ -505,10 +539,11 @@ export default function InvoicesPage() {
                 <td className="text-right">
                   <button
                     type="button"
-                    className="text-blue-600 hover:underline"
+                    disabled={downloadingPdfId === inv.id}
+                    className="text-blue-600 hover:underline disabled:opacity-50 disabled:cursor-not-allowed"
                     onClick={() => downloadPdf(inv)}
                   >
-                    Download PDF
+                    {downloadingPdfId === inv.id ? "Downloading…" : "Download PDF"}
                   </button>
                   <button
                     type="button"
