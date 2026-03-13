@@ -73,11 +73,14 @@ export default function ProjectDetailPage() {
       return;
     }
 
+    const tid = tenantId as string;
+    const pid = projectId as string;
+
     async function load() {
       setLoading(true);
       setNotFound(false);
       try {
-        const ref = doc(db, "tenants", tenantId, "projects", projectId);
+        const ref = doc(db, "tenants", tid, "projects", pid);
         const snap = await getDoc(ref);
         if (!snap.exists()) {
           setNotFound(true);
