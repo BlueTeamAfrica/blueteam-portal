@@ -163,8 +163,11 @@ export default function ProjectsPage() {
           <tbody>
             {projects.map((project) => (
               <tr key={project.id} className="border-b border-slate-100 last:border-0 hover:bg-slate-50/50">
-                <td className="py-3 px-4 text-[#0F172A]">
-                  <Link href={`/portal/projects/${project.id}`} className="text-blue-600 hover:underline font-medium">
+                <td className="py-3 px-4 text-[#0F172A] font-medium">
+                  <Link
+                    href={`/portal/projects/${project.id}`}
+                    className="text-indigo-600 hover:underline"
+                  >
                     {project.name ?? "—"}
                   </Link>
                 </td>
