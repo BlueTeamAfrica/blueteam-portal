@@ -79,6 +79,12 @@ export async function generateDueInvoicesForTenant(tenantId: string): Promise<Ge
     .where("nextBillingDate", "<=", now)
     .get();
 
+  console.log("INVOICE DEBUG: query result", {
+    tenantId,
+    currentDate: now.toISOString(),
+    dueCount: dueSnap.size,
+  });
+
   const dueCount = dueSnap.size;
 
   let generatedCount = 0;
@@ -117,12 +123,42 @@ export async function generateDueInvoicesForTenant(tenantId: string): Promise<Ge
         };
 
         const subStatus = sub.status as SubStatus;
-        if (subStatus !== "active") return;
+        if (subStatus !== "active") {
+          console.log("INVOICE DEBUG: skipped", {
+            tenantId,
+            subscriptionId,
+            currentDate: now.toISOString(),
+            nextBillingDate: sub.nextBillingDate && "toDate" in sub.nextBillingDate
+              ? sub.nextBillingDate.toDate?.().toISOString?.()
+              : sub.nextBillingDate ?? null,
+            invoiceCreated: false,
+            reason: `status ${subStatus} is not active inside transaction`,
+          });
+          return;
+        }
 
         if (!sub.clientId || !sub.name || typeof sub.price !== "number" || !sub.interval) {
+          console.warn("INVOICE DEBUG: skipped – missing required fields", {
+            tenantId,
+            subscriptionId,
+            currentDate: now.toISOString(),
+            nextBillingDate: sub.nextBillingDate && "toDate" in sub.nextBillingDate
+              ? sub.nextBillingDate.toDate?.().toISOString?.()
+              : sub.nextBillingDate ?? null,
+            invoiceCreated: false,
+            reason: "missing clientId/name/price/interval",
+          });
           throw new Error("Subscription missing required fields (clientId/name/price/interval)");
         }
         if (sub.interval !== "monthly" && sub.interval !== "yearly") {
+          console.warn("INVOICE DEBUG: skipped – invalid interval", {
+            tenantId,
+            subscriptionId,
+            currentDate: now.toISOString(),
+            interval: sub.interval,
+            invoiceCreated: false,
+            reason: "interval not monthly or yearly",
+          });
           throw new Error(`Invalid interval: ${sub.interval}`);
         }
 
@@ -130,7 +166,17 @@ export async function generateDueInvoicesForTenant(tenantId: string): Promise<Ge
           ? sub.nextBillingDate.toDate()
           : new Date((sub.nextBillingDate as unknown) as string);
 
-        if (oldNextBillingDate.getTime() > now.getTime()) return;
+        if (oldNextBillingDate.getTime() > now.getTime()) {
+          console.log("INVOICE DEBUG: skipped – nextBillingDate in future", {
+            tenantId,
+            subscriptionId,
+            currentDate: now.toISOString(),
+            nextBillingDate: oldNextBillingDate.toISOString(),
+            invoiceCreated: false,
+            reason: "nextBillingDate > currentDate inside transaction",
+          });
+          return;
+        }
 
         const billingYM = ymKey(oldNextBillingDate);
         const billingKey = `sub_${subscriptionId}_${billingYM}`;
@@ -144,6 +190,15 @@ export async function generateDueInvoicesForTenant(tenantId: string): Promise<Ge
         const existingInvoice = await tx.get(invoiceRef);
         if (existingInvoice.exists) {
           skippedCount += 1;
+          console.log("INVOICE DEBUG: skipped – invoice already exists for billing period", {
+            tenantId,
+            subscriptionId,
+            currentDate: now.toISOString(),
+            nextBillingDate: oldNextBillingDate.toISOString(),
+            billingKey,
+            invoiceCreated: false,
+            reason: "invoice for this billing period already exists",
+          });
           return;
         }
 
@@ -170,6 +225,7 @@ export async function generateDueInvoicesForTenant(tenantId: string): Promise<Ge
         });
 
         tx.update(subDoc.ref, {
+          lastInvoiceDate: issueDate,
           nextBillingDate: newNextBillingDate,
           updatedAt: new Date(),
         });
@@ -188,6 +244,17 @@ export async function generateDueInvoicesForTenant(tenantId: string): Promise<Ge
           amount: sub.price ?? 0,
           currency: sub.currency || "USD",
           dueDate: dueDateStr,
+        });
+
+        console.log("INVOICE DEBUG: created invoice", {
+          tenantId,
+          subscriptionId,
+          currentDate: now.toISOString(),
+          nextBillingDate: oldNextBillingDate.toISOString(),
+          newNextBillingDate: newNextBillingDate.toISOString(),
+          billingKey,
+          invoiceCreated: true,
+          reason: "invoice generated for due subscription",
         });
       });
     } catch (e: unknown) {
