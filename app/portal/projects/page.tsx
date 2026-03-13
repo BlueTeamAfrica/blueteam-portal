@@ -103,10 +103,10 @@ export default function ProjectsPage() {
   if (loading) return <p className="text-[#0F172A]">Loading projects…</p>;
 
   return (
-    <div className="max-w-full">
-      <h1 className="text-[#0F172A] text-2xl font-semibold break-words">Projects</h1>
+    <div className="max-w-full min-w-0">
+      <h1 className="text-[#0F172A] text-xl sm:text-2xl font-semibold break-words">Projects</h1>
 
-      <div className="mt-4 mb-4">
+      <div className="mt-3 mb-3 md:mt-4 md:mb-4 flex flex-wrap gap-2">
         <button
           type="button"
           onClick={() => setShowForm((v) => !v)}
@@ -117,20 +117,20 @@ export default function ProjectsPage() {
       </div>
 
       {showForm && (
-        <form onSubmit={handleAddProject} className="mb-6 flex flex-wrap gap-3 items-center bg-white rounded-xl shadow-sm border border-slate-200 p-4">
+        <form onSubmit={handleAddProject} className="mb-4 md:mb-6 flex flex-wrap gap-3 items-center bg-white rounded-xl shadow-sm border border-slate-200 p-4 max-w-full">
           <input
             type="text"
             placeholder="Project name"
             value={name}
             onChange={(e) => setName(e.target.value)}
             required
-            className="px-3 py-2 rounded-lg border border-slate-200 min-w-[200px] text-[#0F172A] placeholder:text-slate-400"
+            className="w-full min-w-0 sm:min-w-[200px] px-3 py-2 rounded-lg border border-slate-200 text-[#0F172A] placeholder:text-slate-400"
           />
           <select
             value={clientId}
             onChange={(e) => setClientId(e.target.value)}
             required
-            className="px-3 py-2 rounded-lg border border-slate-200 min-w-[220px] text-[#0F172A]"
+            className="w-full min-w-0 sm:min-w-[220px] px-3 py-2 rounded-lg border border-slate-200 text-[#0F172A]"
           >
             <option value="">Select client</option>
             {clients.map((c) => (

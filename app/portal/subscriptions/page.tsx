@@ -180,13 +180,13 @@ export default function SubscriptionsPage() {
   if (loading) return <p className="text-[#0F172A]">Loading subscriptions…</p>;
 
   return (
-    <div className="max-w-full">
-      <div className="flex items-center justify-between flex-wrap gap-2">
-        <h1 className="text-[#0F172A] text-2xl font-semibold break-words">Subscriptions</h1>
+    <div className="max-w-full min-w-0">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 md:gap-4">
+        <h1 className="text-[#0F172A] text-xl sm:text-2xl font-semibold break-words">Subscriptions</h1>
         <button
           type="button"
           onClick={() => setShowForm((v) => !v)}
-          className="px-4 py-2 rounded-lg bg-[#4F46E5] text-white font-medium hover:bg-indigo-600 transition-colors"
+          className="px-3 py-2 sm:px-4 rounded-lg bg-[#4F46E5] text-white text-sm font-medium hover:bg-indigo-600 transition-colors w-fit"
         >
           ➕ Add Subscription
         </button>
@@ -195,7 +195,7 @@ export default function SubscriptionsPage() {
       {showForm && (
         <form
           onSubmit={handleAddSubscription}
-          className="mt-6 bg-white rounded-xl shadow-sm border border-slate-200 p-6 space-y-4"
+          className="mt-4 md:mt-6 bg-white rounded-xl shadow-sm border border-slate-200 p-4 md:p-6 space-y-4 max-w-full"
         >
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
@@ -260,18 +260,18 @@ export default function SubscriptionsPage() {
               />
             </div>
           </div>
-          <div className="flex gap-3">
+          <div className="flex flex-wrap gap-2">
             <button
               type="submit"
               disabled={submitting}
-              className="px-4 py-2 rounded-lg bg-emerald-600 text-white font-medium disabled:opacity-60 disabled:cursor-not-allowed hover:bg-emerald-700 transition-colors"
+              className="px-3 py-2 sm:px-4 rounded-lg bg-emerald-600 text-white text-sm font-medium disabled:opacity-60 disabled:cursor-not-allowed hover:bg-emerald-700 transition-colors"
             >
               {submitting ? "Creating…" : "Create Subscription"}
             </button>
             <button
               type="button"
               onClick={() => setShowForm(false)}
-              className="px-4 py-2 rounded-lg border border-slate-200 bg-white text-[#0F172A] font-medium hover:bg-slate-50 transition-colors"
+              className="px-3 py-2 sm:px-4 rounded-lg border border-slate-200 bg-white text-[#0F172A] text-sm font-medium hover:bg-slate-50 transition-colors"
             >
               Cancel
             </button>
@@ -280,12 +280,12 @@ export default function SubscriptionsPage() {
       )}
 
       {subscriptions.length === 0 ? (
-        <div className="mt-6 bg-white rounded-xl shadow-sm border border-slate-200 p-12 text-center">
+        <div className="mt-4 md:mt-6 bg-white rounded-xl shadow-sm border border-slate-200 p-6 md:p-12 text-center max-w-full">
           <p className="text-slate-500 text-lg">No subscriptions yet</p>
           <p className="text-slate-400 text-sm mt-1">Click {"\"Add Subscription\""} to create your first subscription.</p>
         </div>
       ) : (
-        <div className="mt-6 bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden max-w-full">
+        <div className="mt-4 md:mt-6 bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden max-w-full">
           <div className="w-full overflow-x-auto">
             <table className="min-w-[900px] w-full border-collapse">
             <thead>

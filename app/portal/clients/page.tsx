@@ -81,10 +81,10 @@ export default function ClientsPage() {
   if (loading) return <p className="text-[#0F172A]">Loading clients…</p>;
 
   return (
-    <div className="max-w-full">
-      <h1 className="text-[#0F172A] text-2xl font-semibold break-words">Clients</h1>
+    <div className="max-w-full min-w-0">
+      <h1 className="text-[#0F172A] text-xl sm:text-2xl font-semibold break-words">Clients</h1>
 
-      <div className="mt-4 mb-4">
+      <div className="mt-3 mb-3 md:mt-4 md:mb-4 flex flex-wrap gap-2">
         <button
           type="button"
           onClick={() => setShowForm((v) => !v)}
@@ -95,14 +95,14 @@ export default function ClientsPage() {
       </div>
 
       {showForm && (
-        <form onSubmit={handleAddClient} className="mb-6 flex flex-wrap gap-3 items-center bg-white rounded-xl shadow-sm border border-slate-200 p-4">
+        <form onSubmit={handleAddClient} className="mb-4 md:mb-6 flex flex-wrap gap-3 items-center bg-white rounded-xl shadow-sm border border-slate-200 p-4 max-w-full">
           <input
             type="text"
             placeholder="Name"
             value={name}
             onChange={(e) => setName(e.target.value)}
             required
-            className="px-3 py-2 rounded-lg border border-slate-200 min-w-[200px] text-[#0F172A] placeholder:text-slate-400"
+            className="w-full min-w-0 sm:min-w-[200px] px-3 py-2 rounded-lg border border-slate-200 text-[#0F172A] placeholder:text-slate-400"
           />
           <input
             type="email"
@@ -110,7 +110,7 @@ export default function ClientsPage() {
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             required
-            className="px-3 py-2 rounded-lg border border-slate-200 min-w-[220px] text-[#0F172A] placeholder:text-slate-400"
+            className="w-full min-w-0 sm:min-w-[220px] px-3 py-2 rounded-lg border border-slate-200 text-[#0F172A] placeholder:text-slate-400"
           />
           <button
             type="submit"

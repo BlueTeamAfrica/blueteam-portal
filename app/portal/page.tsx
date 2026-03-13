@@ -71,28 +71,28 @@ export default function PortalPage() {
   if (!tenant) return <p className="text-[#0F172A]">Loading tenant…</p>;
 
   return (
-    <div className="max-w-full">
-      <h1 className="text-[#0F172A] text-2xl font-semibold break-words">Dashboard</h1>
+    <div className="max-w-full min-w-0">
+      <h1 className="text-[#0F172A] text-xl sm:text-2xl font-semibold break-words">Dashboard</h1>
       <p className="text-slate-600 mt-1 break-words">{tenant.name}</p>
       <p className="text-slate-500 text-sm">{tenant.status}</p>
 
-      <div className="mt-6">
+      <div className="mt-4 md:mt-6">
         {loadingKpis && <p className="text-[#0F172A]">Loading KPIs…</p>}
         {!loadingKpis && kpis && (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-5">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
+            <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4 md:p-5 max-w-full">
               <div className="text-xs uppercase tracking-wide text-slate-500">Total Clients</div>
               <div className="text-2xl font-semibold text-[#0F172A] mt-1">{kpis.totalClients}</div>
             </div>
-            <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-5">
+            <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4 md:p-5 max-w-full">
               <div className="text-xs uppercase tracking-wide text-slate-500">Total Projects</div>
               <div className="text-2xl font-semibold text-[#0F172A] mt-1">{kpis.totalProjects}</div>
             </div>
-            <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-5">
+            <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4 md:p-5 max-w-full">
               <div className="text-xs uppercase tracking-wide text-red-600">Unpaid Invoices</div>
               <div className="text-2xl font-semibold text-[#0F172A] mt-1">{kpis.unpaidInvoices}</div>
             </div>
-            <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-5">
+            <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4 md:p-5 max-w-full">
               <div className="text-xs uppercase tracking-wide text-red-600">Unpaid Invoice Value</div>
               <div className="text-2xl font-semibold text-[#0F172A] mt-1">
                 ${kpis.unpaidInvoiceValue.toLocaleString()}

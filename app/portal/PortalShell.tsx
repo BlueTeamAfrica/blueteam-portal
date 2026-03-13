@@ -49,7 +49,7 @@ export default function PortalShell({ children }: { children: React.ReactNode })
   const [drawerOpen, setDrawerOpen] = useState(false);
 
   return (
-    <div className="min-h-screen bg-[#F8FAFC] flex flex-col md:flex-row">
+    <div className="min-h-screen bg-[#F8FAFC] flex flex-col md:flex-row overflow-x-hidden">
       {/* Mobile top bar */}
       <header className="md:hidden h-14 bg-white border-b border-slate-200 flex items-center justify-between px-4 shrink-0">
         <div className="flex items-center gap-3">
@@ -130,7 +130,7 @@ export default function PortalShell({ children }: { children: React.ReactNode })
             Sign out
           </button>
         </header>
-        <main className="flex-1 px-4 py-4 md:px-8 overflow-auto max-w-full">{children}</main>
+        <main className="flex-1 px-3 py-3 sm:px-4 sm:py-4 md:px-8 overflow-x-hidden overflow-y-auto max-w-full min-w-0">{children}</main>
       </div>
     </div>
   );
