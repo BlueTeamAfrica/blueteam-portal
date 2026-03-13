@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { collection, getDocs, addDoc, serverTimestamp } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useAuth } from "@/lib/authContext";
@@ -161,8 +162,12 @@ export default function ProjectsPage() {
           </thead>
           <tbody>
             {projects.map((project) => (
-              <tr key={project.id} className="border-b border-slate-100 last:border-0">
-                <td className="py-3 px-4 text-[#0F172A]">{project.name ?? "—"}</td>
+              <tr key={project.id} className="border-b border-slate-100 last:border-0 hover:bg-slate-50/50">
+                <td className="py-3 px-4 text-[#0F172A]">
+                  <Link href={`/portal/projects/${project.id}`} className="text-blue-600 hover:underline font-medium">
+                    {project.name ?? "—"}
+                  </Link>
+                </td>
                 <td className="py-3 px-4 text-[#0F172A]">{project.clientName ?? "—"}</td>
                 <td className="py-3 px-4 text-[#0F172A]">{project.status ?? "—"}</td>
               </tr>
