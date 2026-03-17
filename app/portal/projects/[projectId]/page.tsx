@@ -129,7 +129,7 @@ export default function ProjectDetailPage() {
 
   if (!user) return <p className="text-[#0F172A]">Please log in</p>;
   if (!tenant) return <p className="text-[#0F172A]">Loading tenant…</p>;
-  if (loading) return <p className="text-[#0F172A]">Loading project…</p>;
+  if (loading && !project) return <p className="text-[#0F172A]">Loading project…</p>;
   if (notFound || !project) {
     return (
       <div className="max-w-full min-w-0 space-y-4">
@@ -142,7 +142,10 @@ export default function ProjectDetailPage() {
     );
   }
 
-  const statusLower = (project.status ?? "").toLowerCase();
+  // At this point project is guaranteed to exist
+  const safeProject: ProjectData = project;
+
+  const statusLower = (safeProject.status ?? "").toLowerCase();
   const statusBadge =
     statusLower === "active"
       ? "bg-emerald-100 text-emerald-800 border-emerald-200"
@@ -152,11 +155,14 @@ export default function ProjectDetailPage() {
           ? "bg-amber-100 text-amber-800 border-amber-200"
           : "bg-slate-100 text-slate-600 border-slate-200";
 
-  const lastUpdated = project.updatedAt ?? project.createdAt;
+  const lastUpdated = safeProject.updatedAt ?? safeProject.createdAt;
   const progressValue =
-    project.progress != null && !Number.isNaN(project.progress)
-      ? Math.max(0, Math.min(100, project.progress))
+    safeProject.progress != null && !Number.isNaN(safeProject.progress)
+      ? Math.max(0, Math.min(100, safeProject.progress))
       : 0;
+  const milestones = safeProject.milestones ?? [];
+  const updates = safeProject.updates ?? [];
+  const deliverables = safeProject.deliverables ?? [];
 
   return (
     <div className="max-w-full min-w-0 space-y-6 md:space-y-8">
@@ -166,22 +172,22 @@ export default function ProjectDetailPage() {
       <section className="bg-white rounded-xl shadow-sm border border-slate-200 p-4 md:p-6">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div className="min-w-0">
-            <h1 className="text-[#0F172A] text-xl sm:text-2xl font-semibold break-words">{project.name ?? "Unnamed project"}</h1>
-            {project.clientName && (
-              <p className="text-slate-600 mt-1 break-words">Client: {project.clientName}</p>
+            <h1 className="text-[#0F172A] text-xl sm:text-2xl font-semibold break-words">{safeProject.name ?? "Unnamed project"}</h1>
+            {safeProject.clientName && (
+              <p className="text-slate-600 mt-1 break-words">Client: {safeProject.clientName}</p>
             )}
             <div className="flex flex-wrap gap-2 mt-2">
               <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${statusBadge}`}>
-                {project.status ?? "—"}
+                {safeProject.status ?? "—"}
               </span>
-              {project.priority && (
+              {safeProject.priority && (
                 <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-50 text-indigo-700 border border-indigo-200">
-                  {project.priority}
+                  {safeProject.priority}
                 </span>
               )}
             </div>
-            {project.description && (
-              <p className="text-slate-600 text-sm mt-3 break-words max-w-2xl">{project.description}</p>
+            {safeProject.description && (
+              <p className="text-slate-600 text-sm mt-3 break-words max-w-2xl">{safeProject.description}</p>
             )}
             {lastUpdated && (
               <p className="text-xs text-slate-400 mt-2">Last updated: {formatDateTime(lastUpdated)}</p>
@@ -223,26 +229,26 @@ export default function ProjectDetailPage() {
         <dl className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-sm">
           <div>
             <dt className="text-slate-500">Start date</dt>
-            <dd className="font-medium text-[#0F172A] mt-0.5">{formatDate(project.startDate)}</dd>
+            <dd className="font-medium text-[#0F172A] mt-0.5">{formatDate(safeProject.startDate)}</dd>
           </div>
           <div>
             <dt className="text-slate-500">Due date</dt>
-            <dd className="font-medium text-[#0F172A] mt-0.5">{formatDate(project.dueDate)}</dd>
+            <dd className="font-medium text-[#0F172A] mt-0.5">{formatDate(safeProject.dueDate)}</dd>
           </div>
           <div>
             <dt className="text-slate-500">Project owner</dt>
-            <dd className="font-medium text-[#0F172A] mt-0.5">{project.projectOwner ?? "—"}</dd>
+            <dd className="font-medium text-[#0F172A] mt-0.5">{safeProject.projectOwner ?? "—"}</dd>
           </div>
           <div>
             <dt className="text-slate-500">Progress</dt>
             <dd className="font-medium text-[#0F172A] mt-0.5">
-              {project.progress != null ? `${project.progress}%` : "—"}
+              {safeProject.progress != null ? `${safeProject.progress}%` : "—"}
             </dd>
           </div>
         </dl>
-        {project.phase && (
+        {safeProject.phase && (
           <p className="text-sm text-slate-600 mt-3">
-            <span className="text-slate-500">Current phase:</span> {project.phase}
+            <span className="text-slate-500">Current phase:</span> {safeProject.phase}
           </p>
         )}
       </section>
@@ -275,9 +281,9 @@ export default function ProjectDetailPage() {
       {/* Milestones */}
       <section className="bg-white rounded-xl shadow-sm border border-slate-200 p-4 md:p-5">
         <h2 className="text-[#0F172A] text-base font-semibold mb-3">Milestones</h2>
-        {project.milestones && project.milestones.length > 0 ? (
+        {milestones.length > 0 ? (
           <ul className="space-y-3">
-            {project.milestones.map((m, i) => {
+            {milestones.map((m, i) => {
               const s = (m.status ?? "pending").toLowerCase();
               const statusCls =
                 s === "completed"
@@ -308,9 +314,9 @@ export default function ProjectDetailPage() {
       {/* Updates / activity */}
       <section className="bg-white rounded-xl shadow-sm border border-slate-200 p-4 md:p-5">
         <h2 className="text-[#0F172A] text-base font-semibold mb-3">Updates &amp; activity</h2>
-        {project.updates && project.updates.length > 0 ? (
+        {updates.length > 0 ? (
           <ul className="space-y-3">
-            {project.updates.map((u, i) => (
+            {updates.map((u, i) => (
               <li key={u.id ?? i} className="flex flex-col gap-1 p-3 rounded-lg border border-slate-200 bg-slate-50/50 text-sm">
                 {u.text && <p className="text-[#0F172A] break-words">{u.text}</p>}
                 {u.createdAt && (
@@ -326,7 +332,7 @@ export default function ProjectDetailPage() {
         ) : (
           <div className="py-8 text-center rounded-lg border border-dashed border-slate-200 bg-slate-50/50">
             <p className="text-slate-500 text-sm">No updates yet.</p>
-            <p className="text-slate-400 text-xs mt-1">Project created {formatDateTime(project.createdAt)}</p>
+            <p className="text-slate-400 text-xs mt-1">Project created {formatDateTime(safeProject.createdAt)}</p>
           </div>
         )}
       </section>
@@ -335,32 +341,32 @@ export default function ProjectDetailPage() {
       <section className="bg-white rounded-xl shadow-sm border border-slate-200 p-4 md:p-5">
         <h2 className="text-[#0F172A] text-base font-semibold mb-3">Links &amp; deliverables</h2>
         <div className="space-y-2 text-sm">
-          {project.stagingUrl ? (
+          {safeProject.stagingUrl ? (
             <div>
               <span className="text-slate-500">Staging:</span>{" "}
-              <a href={project.stagingUrl} target="_blank" rel="noopener noreferrer" className="text-[#4F46E5] hover:underline break-all">
-                {project.stagingUrl}
+              <a href={safeProject.stagingUrl} target="_blank" rel="noopener noreferrer" className="text-[#4F46E5] hover:underline break-all">
+                {safeProject.stagingUrl}
               </a>
             </div>
           ) : null}
-          {project.liveUrl ? (
+          {safeProject.liveUrl ? (
             <div>
               <span className="text-slate-500">Live:</span>{" "}
-              <a href={project.liveUrl} target="_blank" rel="noopener noreferrer" className="text-[#4F46E5] hover:underline break-all">
-                {project.liveUrl}
+              <a href={safeProject.liveUrl} target="_blank" rel="noopener noreferrer" className="text-[#4F46E5] hover:underline break-all">
+                {safeProject.liveUrl}
               </a>
             </div>
           ) : null}
-          {project.repoUrl ? (
+          {safeProject.repoUrl ? (
             <div>
               <span className="text-slate-500">Repository:</span>{" "}
-              <a href={project.repoUrl} target="_blank" rel="noopener noreferrer" className="text-[#4F46E5] hover:underline break-all">
-                {project.repoUrl}
+              <a href={safeProject.repoUrl} target="_blank" rel="noopener noreferrer" className="text-[#4F46E5] hover:underline break-all">
+                {safeProject.repoUrl}
               </a>
             </div>
           ) : null}
         </div>
-        {!project.stagingUrl && !project.liveUrl && !project.repoUrl && (
+        {!safeProject.stagingUrl && !safeProject.liveUrl && !safeProject.repoUrl && (
           <div className="py-8 text-center rounded-lg border border-dashed border-slate-200 bg-slate-50/50 mt-2">
             <p className="text-slate-500 text-sm">No links added yet.</p>
             <p className="text-slate-400 text-xs mt-1">Add staging, live, or repo URLs when ready.</p>
@@ -381,9 +387,9 @@ export default function ProjectDetailPage() {
             Upload file (coming soon)
           </button>
         </div>
-        {project.deliverables && project.deliverables.length > 0 ? (
+        {deliverables.length > 0 ? (
           <ul className="space-y-3 text-sm">
-            {project.deliverables.map((file, index) => {
+            {deliverables.map((file, index) => {
               const uploadedAt =
                 file.uploadedAt &&
                 typeof (file.uploadedAt as { toDate?: () => Date }).toDate === "function"
