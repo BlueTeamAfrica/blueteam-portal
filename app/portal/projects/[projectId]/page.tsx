@@ -38,6 +38,15 @@ type ProjectData = {
     text?: string;
     createdAt?: Timestamp | { toDate?: () => Date };
   }>;
+  deliverables?: Array<{
+    id?: string;
+    name: string;
+    url?: string;
+    category?: string;
+    uploadedAt?: Timestamp | { toDate?: () => Date };
+    uploadedBy?: string;
+    description?: string;
+  }>;
 };
 
 function formatDate(ts: Timestamp | { toDate?: () => Date } | null | undefined): string {
@@ -108,6 +117,7 @@ export default function ProjectDetailPage() {
           repoUrl: d.repoUrl as string | undefined,
           milestones: Array.isArray(d.milestones) ? d.milestones as ProjectData["milestones"] : undefined,
           updates: Array.isArray(d.updates) ? d.updates as ProjectData["updates"] : undefined,
+          deliverables: Array.isArray(d.deliverables) ? d.deliverables as ProjectData["deliverables"] : undefined,
         });
       } finally {
         setLoading(false);
@@ -354,6 +364,97 @@ export default function ProjectDetailPage() {
           <div className="py-8 text-center rounded-lg border border-dashed border-slate-200 bg-slate-50/50 mt-2">
             <p className="text-slate-500 text-sm">No links added yet.</p>
             <p className="text-slate-400 text-xs mt-1">Add staging, live, or repo URLs when ready.</p>
+          </div>
+        )}
+      </section>
+
+      {/* Deliverables / files */}
+      <section className="bg-white rounded-xl shadow-sm border border-slate-200 p-4 md:p-5">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-3">
+          <h2 className="text-[#0F172A] text-base font-semibold">Deliverables</h2>
+          <button
+            type="button"
+            disabled
+            className="inline-flex items-center justify-center px-3 py-2 rounded-lg border border-dashed border-slate-300 text-xs sm:text-sm text-slate-500 bg-slate-50 cursor-not-allowed"
+            title="File upload will be configured with storage in a future update."
+          >
+            Upload file (coming soon)
+          </button>
+        </div>
+        {project.deliverables && project.deliverables.length > 0 ? (
+          <ul className="space-y-3 text-sm">
+            {project.deliverables.map((file, index) => {
+              const uploadedAt =
+                file.uploadedAt &&
+                typeof (file.uploadedAt as { toDate?: () => Date }).toDate === "function"
+                  ? (file.uploadedAt as { toDate: () => Date }).toDate()
+                  : undefined;
+              return (
+                <li
+                  key={file.id ?? index}
+                  className="flex flex-col gap-2 p-3 rounded-lg border border-slate-200 bg-slate-50/50"
+                >
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="font-medium text-[#0F172A] break-words">
+                        {file.name || "Untitled file"}
+                      </p>
+                      <p className="text-xs text-slate-500 mt-0.5 flex flex-wrap gap-1">
+                        {file.category && (
+                          <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-slate-800 text-slate-100 text-[11px] uppercase tracking-wide">
+                            {file.category}
+                          </span>
+                        )}
+                        {file.uploadedBy && (
+                          <span className="text-slate-500">
+                            Uploaded by <span className="font-medium">{file.uploadedBy}</span>
+                          </span>
+                        )}
+                        {uploadedAt && (
+                          <span className="text-slate-500">
+                            · {uploadedAt.toLocaleDateString(undefined, { dateStyle: "medium" })}
+                          </span>
+                        )}
+                      </p>
+                    </div>
+                    <div className="shrink-0">
+                      {file.url ? (
+                        <a
+                          href={file.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center px-3 py-1.5 rounded-lg bg-[#4F46E5] text-white text-xs sm:text-sm font-medium hover:bg-indigo-600 transition-colors"
+                        >
+                          Download
+                        </a>
+                      ) : (
+                        <button
+                          type="button"
+                          disabled
+                          className="inline-flex items-center px-3 py-1.5 rounded-lg border border-slate-300 text-xs sm:text-sm text-slate-400 cursor-not-allowed bg-slate-50"
+                          title="No download URL set yet."
+                        >
+                          Download unavailable
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                  {file.description && (
+                    <p className="text-xs text-slate-600 break-words">{file.description}</p>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        ) : (
+          <div className="py-8 text-center rounded-lg border border-dashed border-slate-200 bg-slate-50/50">
+            <p className="text-slate-500 text-sm">
+              No deliverable files have been added to this project yet.
+            </p>
+            <p className="text-slate-400 text-xs mt-1 max-w-md mx-auto">
+              Project handoff documents, design assets, reports, and other client-facing files will
+              appear here once you start attaching deliverables to this workspace.
+            </p>
           </div>
         )}
       </section>
