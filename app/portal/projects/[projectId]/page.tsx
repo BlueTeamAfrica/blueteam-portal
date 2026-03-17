@@ -62,7 +62,7 @@ function formatDateTime(ts: Timestamp | { toDate?: () => Date } | null | undefin
   if (typeof (ts as Timestamp).toDate === "function") d = (ts as Timestamp).toDate();
   else if (typeof (ts as { toDate?: () => Date }).toDate === "function") d = (ts as { toDate: () => Date }).toDate();
   else return "—";
-  return d.toLocaleDateString(undefined, { dateStyle: "medium", timeStyle: "short" });
+  return d.toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
 }
 
 export default function ProjectDetailPage() {
@@ -322,7 +322,7 @@ export default function ProjectDetailPage() {
                 {u.createdAt && (
                   <p className="text-xs text-slate-500">
                     {typeof (u.createdAt as { toDate?: () => Date }).toDate === "function"
-                      ? (u.createdAt as { toDate: () => Date }).toDate().toLocaleDateString(undefined, { dateStyle: "medium", timeStyle: "short" })
+                      ? (u.createdAt as { toDate: () => Date }).toDate().toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })
                       : "—"}
                   </p>
                 )}
