@@ -23,6 +23,7 @@ type RecentActivityItem = {
   subtitle?: string;
   dateLabel: string;
   icon: string;
+  timestamp?: Date;
 };
 
 export default function PortalPage() {
@@ -144,7 +145,9 @@ export default function PortalPage() {
           activity.push({
             id: doc.id,
             type: "invoice",
-            title: data.invoiceNumber ?? doc.id,
+            title: data.invoiceNumber
+              ? `Invoice ${data.invoiceNumber} generated`
+              : "Invoice generated",
             subtitle: data.clientName
               ? `${data.clientName}${
                   typeof data.amount === "number"
@@ -152,8 +155,11 @@ export default function PortalPage() {
                     : ""
                 }`
               : undefined,
-            dateLabel: createdAt ? createdAt.toLocaleDateString() : "—",
+            dateLabel: createdAt
+              ? createdAt.toLocaleDateString(undefined, { month: "short", day: "numeric" })
+              : "—",
             icon: "💸",
+            timestamp: createdAt,
           });
         });
 
@@ -171,10 +177,13 @@ export default function PortalPage() {
           activity.push({
             id: doc.id,
             type: "subscription",
-            title: data.name ?? "Subscription",
-            subtitle: data.clientName,
-            dateLabel: createdAt ? createdAt.toLocaleDateString() : "—",
+            title: data.name ? `Subscription "${data.name}" updated` : "Subscription updated",
+            subtitle: data.clientName ?? undefined,
+            dateLabel: createdAt
+              ? createdAt.toLocaleDateString(undefined, { month: "short", day: "numeric" })
+              : "—",
             icon: "🔁",
+            timestamp: createdAt,
           });
         });
 
@@ -192,15 +201,25 @@ export default function PortalPage() {
           activity.push({
             id: doc.id,
             type: "project",
-            title: data.name ?? "Project",
-            subtitle: data.clientName,
-            dateLabel: createdAt ? createdAt.toLocaleDateString() : "—",
+            title: data.name ? `Project "${data.name}" created` : "Project created",
+            subtitle: data.clientName ? `Client: ${data.clientName}` : undefined,
+            dateLabel: createdAt
+              ? createdAt.toLocaleDateString(undefined, { month: "short", day: "numeric" })
+              : "—",
             icon: "📁",
+            timestamp: createdAt,
           });
         });
 
-        // Sort mixed activity by recency (best-effort, using dateLabel when available)
-        const sortedActivity = activity.slice(0, 12);
+        // Sort mixed activity by recency and limit
+        const sortedActivity = activity
+          .slice()
+          .sort((a, b) => {
+            const at = a.timestamp ? a.timestamp.getTime() : 0;
+            const bt = b.timestamp ? b.timestamp.getTime() : 0;
+            return bt - at;
+          })
+          .slice(0, 15);
 
         setKpis({
           totalClients,
