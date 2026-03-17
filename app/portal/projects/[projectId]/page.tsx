@@ -143,6 +143,10 @@ export default function ProjectDetailPage() {
           : "bg-slate-100 text-slate-600 border-slate-200";
 
   const lastUpdated = project.updatedAt ?? project.createdAt;
+  const progressValue =
+    project.progress != null && !Number.isNaN(project.progress)
+      ? Math.max(0, Math.min(100, project.progress))
+      : 0;
 
   return (
     <div className="max-w-full min-w-0 space-y-6 md:space-y-8">
@@ -229,6 +233,31 @@ export default function ProjectDetailPage() {
         {project.phase && (
           <p className="text-sm text-slate-600 mt-3">
             <span className="text-slate-500">Current phase:</span> {project.phase}
+          </p>
+        )}
+      </section>
+
+      {/* Progress */}
+      <section className="bg-white rounded-xl shadow-sm border border-slate-200 p-4 md:p-5">
+        <h2 className="text-[#0F172A] text-base font-semibold mb-3">Progress</h2>
+        <p className="text-sm text-slate-600 mb-2">
+          Overall project completion based on your internal tracking.
+        </p>
+        <div className="flex items-center gap-3">
+          <div className="flex-1 min-w-0 h-2 rounded-full bg-slate-100 overflow-hidden">
+            <div
+              className="h-full rounded-full bg-gradient-to-r from-indigo-500 via-sky-500 to-emerald-500 transition-all"
+              style={{ width: `${progressValue}%` }}
+            />
+          </div>
+          <span className="text-sm font-semibold text-[#0F172A] whitespace-nowrap">
+            {progressValue}%
+          </span>
+        </div>
+        {project.progress == null && (
+          <p className="text-xs text-slate-400 mt-2">
+            No progress value set yet. Consider storing a{" "}
+            <span className="font-mono">progress: number</span> (0–100) field on this project.
           </p>
         )}
       </section>
