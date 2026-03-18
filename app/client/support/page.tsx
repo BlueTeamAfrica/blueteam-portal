@@ -161,7 +161,7 @@ export default function ClientSupportPage() {
         clientName = undefined;
       }
 
-      const created = await addDoc(collection(db, "tenants", tid, "tickets"), {
+      const payload = {
         subject: subject.trim(),
         description: description.trim(),
         priority,
@@ -174,7 +174,18 @@ export default function ClientSupportPage() {
         updatedAt: serverTimestamp(),
         createdByUid: user.uid,
         createdByRole: "client",
+      } as const;
+
+      // TEMP DEBUG: helps compare payload.clientId vs users/{uid}.clientId in rules (getClientIdFromUser()).
+      console.log("SUPPORT DEBUG: create ticket", {
+        tenantId: tid,
+        uid: user.uid,
+        createdByRole: "client",
+        clientIdFromTenantContext: clientId,
+        payload,
       });
+
+      const created = await addDoc(collection(db, "tenants", tid, "tickets"), payload);
 
       setSubject("");
       setDescription("");
@@ -185,7 +196,13 @@ export default function ClientSupportPage() {
       router.replace(pathname);
       router.push(`/client/support/${created.id}`);
     } catch (e) {
-      setError("Ticket could not be created. Firestore rejected the write (permissions or missing rules).");
+      const err = e as { code?: string; message?: string };
+      console.log("SUPPORT DEBUG: create ticket failed", err);
+      setError(
+        "Ticket could not be created. " +
+          (err.code ? `(${err.code}) ` : "") +
+          (err.message ?? "Firestore rejected the write (permissions, missing rules, or missing index).")
+      );
     } finally {
       setCreating(false);
     }
