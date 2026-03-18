@@ -110,20 +110,16 @@ service cloud.firestore {
         allow read: if hasTenantAccess(tenantId) || hasTenantAccessLegacy();
         // Only admin/owner can write, and must have canServices permission
         allow update, delete: if (hasTenantAccess(tenantId) || hasTenantAccessLegacy()) && isAdminOrOwner(tenantId);
-        allow create: if (hasTenantAccess(tenantId) || hasTenantAccessLegacy()) && isAdminOrOwner(tenantId) && (
-          let permissions = getPlanPermissions(tenantId);
-          permissions.canServices != false
-        );
+        allow create: if (hasTenantAccess(tenantId) || hasTenantAccessLegacy()) && isAdminOrOwner(tenantId)
+          && getPlanPermissions(tenantId).canServices != false;
       }
 
       // Explicit: tenants/{tenantId}/invoices/{invoiceId}
       match /invoices/{invoiceId} {
         allow read, list: if isTenantUser(tenantId) || (isClientWithTenantAccess(tenantId) && resource.data.clientId == getClientIdFromUser());
         allow update, delete: if (hasTenantAccess(tenantId) || hasTenantAccessLegacy()) && isAdminOrOwner(tenantId);
-        allow create: if (hasTenantAccess(tenantId) || hasTenantAccessLegacy()) && isAdminOrOwner(tenantId) && (
-          let permissions = getPlanPermissions(tenantId);
-          permissions.canInvoices != false
-        );
+        allow create: if (hasTenantAccess(tenantId) || hasTenantAccessLegacy()) && isAdminOrOwner(tenantId)
+          && getPlanPermissions(tenantId).canInvoices != false;
       }
 
       // Explicit: tenants/{tenantId}/subscriptions/{subId}
