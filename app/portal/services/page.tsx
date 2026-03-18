@@ -76,6 +76,18 @@ function normalizeCategory(input: string) {
     .replace(/^_+|_+$/g, "");
 }
 
+function normalizeServiceStatus(input: string) {
+  const s = input.trim().toLowerCase();
+  if (!s) return "";
+  if (s === "active") return "active";
+  if (s === "paused" || s === "on-hold" || s === "on hold") return "paused";
+  if (s === "pending" || s === "in_progress" || s === "in progress" || s === "open") return "pending";
+  if (s === "completed" || s === "complete") return "completed";
+  if (s === "cancelled" || s === "canceled") return "cancelled";
+  if (s === "retired") return "cancelled";
+  return s;
+}
+
 export default function PortalServicesPage() {
   const { user } = useAuth();
   const { tenant } = useTenant();
@@ -160,15 +172,22 @@ export default function PortalServicesPage() {
     return map;
   }, [projects]);
 
-  const statuses = useMemo(() => {
-    const set = new Set<string>();
-    for (const s of services) if (s.status) set.add(String(s.status));
-    return Array.from(set).sort((a, b) => a.localeCompare(b));
-  }, [services]);
+  const statusOptions = [
+    { value: "all", label: "All" },
+    { value: "active", label: "Active" },
+    { value: "pending", label: "Pending" },
+    { value: "paused", label: "Paused" },
+    { value: "completed", label: "Completed" },
+    { value: "cancelled", label: "Cancelled" },
+  ];
 
   const filtered = useMemo(() => {
     return services.filter((s) => {
-      if (statusFilter !== "all" && String(s.status ?? "").toLowerCase() !== statusFilter) return false;
+      if (
+        statusFilter !== "all" &&
+        normalizeServiceStatus(String(s.status ?? "")) !== statusFilter
+      )
+        return false;
       if (categoryFilter !== "all" && normalizeCategory(String(s.category ?? "")) !== categoryFilter) return false;
       if (clientFilter !== "all" && (s.clientId ?? "") !== clientFilter) return false;
       return true;
@@ -205,10 +224,9 @@ export default function PortalServicesPage() {
               onChange={(e) => setStatusFilter(e.target.value)}
               className="w-full px-3 py-2 rounded-lg border border-slate-200 text-[#0F172A] capitalize"
             >
-              <option value="all">All</option>
-              {statuses.map((s) => (
-                <option key={s} value={s.toLowerCase()}>
-                  {s}
+              {statusOptions.map((o) => (
+                <option key={o.value} value={o.value}>
+                  {o.label}
                 </option>
               ))}
             </select>
