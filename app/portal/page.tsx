@@ -28,7 +28,7 @@ type RecentActivityItem = {
 
 export default function PortalPage() {
   const { user } = useAuth();
-  const { tenant } = useTenant();
+  const { tenant, loading: tenantLoading, error: tenantError } = useTenant();
   const [kpis, setKpis] = useState<Kpis | null>(null);
   const [recentActivity, setRecentActivity] = useState<RecentActivityItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -239,7 +239,21 @@ export default function PortalPage() {
   }, [user, tenant?.id]);
 
   if (!user) return <p className="text-[#0F172A]">Please log in</p>;
-  if (!tenant) return <p className="text-[#0F172A]">Loading tenant…</p>;
+  if (tenantLoading) return <p className="text-[#0F172A]">Loading tenant…</p>;
+  if (tenantError) {
+    return (
+      <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+        <h1 className="text-[#0F172A] text-xl sm:text-2xl font-semibold">Dashboard</h1>
+        <p className="text-rose-700 mt-2 text-sm break-words">
+          Unable to load tenant context: {tenantError}
+        </p>
+        <p className="text-slate-500 mt-2 text-sm">
+          Check Firestore permissions for users/&lt;uid&gt;, tenants/&lt;tenantId&gt;, and userTenants/&lt;uid&gt;_&lt;tenantId&gt;.
+        </p>
+      </div>
+    );
+  }
+  if (!tenant) return <p className="text-[#0F172A]">No tenant access.</p>;
 
   return (
     <div className="max-w-full min-w-0 space-y-6 md:space-y-8">

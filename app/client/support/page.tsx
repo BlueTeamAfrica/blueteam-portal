@@ -107,7 +107,18 @@ export default function ClientSupportPage() {
           })
         );
       } catch (e) {
-        setError("Unable to load tickets. If this is your first time using Support, an index or permission rule may be missing.");
+        const err = e as { code?: string; message?: string };
+        console.log("SUPPORT DEBUG: load tickets failed", {
+          tenantId: tid,
+          clientId,
+          code: err.code,
+          message: err.message,
+        });
+        setError(
+          "Unable to load tickets. " +
+            (err.code ? `(${err.code}) ` : "") +
+            (err.message ?? "This may require a Firestore index or rule update.")
+        );
       } finally {
         setLoading(false);
       }
