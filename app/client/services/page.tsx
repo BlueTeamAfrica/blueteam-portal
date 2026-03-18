@@ -87,7 +87,6 @@ export default function ClientServicesPage() {
         );
       } catch (e) {
         const err = e as { code?: string; message?: string };
-        console.log("SERVICES DEBUG: load services failed", { code: err.code, message: err.message });
         setError(err.message ? `Unable to load services: ${err.message}` : "Unable to load services. Please try again.");
       } finally {
         setLoading(false);
