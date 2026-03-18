@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
   addDoc,
   collection,
@@ -60,9 +61,15 @@ function statusBadge(s?: TicketStatus) {
   return badge("bg-slate-50 text-slate-700 border-slate-200", "Open");
 }
 
+type ClientOption = { id: string; name?: string };
+type ProjectOption = { id: string; name?: string; clientId?: string; clientName?: string };
+
 export default function PortalSupportPage() {
   const { user, loading: authLoading } = useAuth();
   const { tenant } = useTenant();
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
 
   const [tickets, setTickets] = useState<TicketRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -74,7 +81,15 @@ export default function PortalSupportPage() {
   const [subject, setSubject] = useState("");
   const [description, setDescription] = useState("");
   const [priority, setPriority] = useState<TicketPriority>("medium");
+  const [clientId, setClientId] = useState<string>("");
+  const [clientName, setClientName] = useState<string>("");
+  const [projectId, setProjectId] = useState<string>("");
+  const [projectName, setProjectName] = useState<string>("");
   const [creating, setCreating] = useState(false);
+  const subjectRef = useRef<HTMLInputElement | null>(null);
+
+  const [clients, setClients] = useState<ClientOption[]>([]);
+  const [projects, setProjects] = useState<ProjectOption[]>([]);
 
   useEffect(() => {
     const tenantId = tenant?.id;
@@ -108,6 +123,59 @@ export default function PortalSupportPage() {
     load();
   }, [user, tenant?.id]);
 
+  // Open "new ticket" flow from query params, and optionally prefill project/client fields.
+  useEffect(() => {
+    if (!tenant?.id) return;
+
+    const newParam = searchParams?.get("new");
+    if (newParam !== "1") return;
+
+    setShowForm(true);
+
+    const qpSubject = searchParams?.get("subject");
+    const qpPriority = searchParams?.get("priority") as TicketPriority | null;
+    const qpClientId = searchParams?.get("clientId");
+    const qpClientName = searchParams?.get("clientName");
+    const qpProjectId = searchParams?.get("projectId");
+    const qpProjectName = searchParams?.get("projectName");
+    const qpDescription = searchParams?.get("description");
+
+    if (qpSubject) setSubject(qpSubject);
+    if (qpDescription) setDescription(qpDescription);
+    if (qpPriority && ["low", "medium", "high", "urgent"].includes(qpPriority)) setPriority(qpPriority);
+    if (qpClientId) setClientId(qpClientId);
+    if (qpClientName) setClientName(qpClientName);
+    if (qpProjectId) setProjectId(qpProjectId);
+    if (qpProjectName) setProjectName(qpProjectName);
+
+    // Best-effort focus
+    setTimeout(() => subjectRef.current?.focus(), 0);
+  }, [searchParams, tenant?.id]);
+
+  // Load client + project options when the form is visible
+  useEffect(() => {
+    const tenantId = tenant?.id;
+    if (!user || !tenantId || !showForm) return;
+
+    const tid = tenantId as string;
+    async function loadOptions() {
+      const [clientsSnap, projectsSnap] = await Promise.all([
+        getDocs(collection(db, "tenants", tid, "clients")),
+        getDocs(collection(db, "tenants", tid, "projects")),
+      ]);
+      setClients(
+        clientsSnap.docs.map((d) => ({ id: d.id, name: (d.data() as { name?: string }).name }))
+      );
+      setProjects(
+        projectsSnap.docs.map((d) => {
+          const data = d.data() as { name?: string; clientId?: string; clientName?: string };
+          return { id: d.id, name: data.name, clientId: data.clientId, clientName: data.clientName };
+        })
+      );
+    }
+    loadOptions();
+  }, [showForm, tenant?.id, user]);
+
   const filtered = useMemo(() => {
     return tickets.filter((t) => {
       const sOk = filterStatus === "all" || (t.status ?? "open") === filterStatus;
@@ -126,11 +194,22 @@ export default function PortalSupportPage() {
 
     setCreating(true);
     try {
+      const resolvedClient =
+        clientId ? clients.find((c) => c.id === clientId) : undefined;
+      const resolvedProject =
+        projectId ? projects.find((p) => p.id === projectId) : undefined;
+      const finalClientName = clientName || resolvedClient?.name || resolvedProject?.clientName;
+      const finalProjectName = projectName || resolvedProject?.name;
+
       await addDoc(collection(db, "tenants", tid, "tickets"), {
         subject: subject.trim(),
         description: description.trim(),
         priority,
         status: "open",
+        clientId: clientId || resolvedProject?.clientId || undefined,
+        clientName: finalClientName || undefined,
+        projectId: projectId || undefined,
+        projectName: finalProjectName || undefined,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
         createdByUid: user.uid,
@@ -140,7 +219,12 @@ export default function PortalSupportPage() {
       setSubject("");
       setDescription("");
       setPriority("medium");
+      setClientId("");
+      setClientName("");
+      setProjectId("");
+      setProjectName("");
       setShowForm(false);
+      router.replace(pathname);
 
       const snap = await getDocs(
         query(collection(db, "tenants", tid, "tickets"), orderBy("updatedAt", "desc"))
@@ -171,7 +255,11 @@ export default function PortalSupportPage() {
         </div>
         <button
           type="button"
-          onClick={() => setShowForm((v) => !v)}
+          onClick={() => {
+            setShowForm(true);
+            router.replace(`${pathname}?new=1`);
+            setTimeout(() => subjectRef.current?.focus(), 0);
+          }}
           className="px-3 py-2 sm:px-4 rounded-lg bg-[#4F46E5] text-white text-sm font-medium hover:bg-indigo-600 transition-colors whitespace-nowrap w-fit"
         >
           ➕ New Ticket
@@ -210,9 +298,52 @@ export default function PortalSupportPage() {
           className="bg-white rounded-xl shadow-sm border border-slate-200 p-4 md:p-6 space-y-3 max-w-full"
         >
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <div>
+              <label className="text-xs font-medium text-slate-600">Client (optional)</label>
+              <select
+                value={clientId}
+                onChange={(e) => {
+                  setClientId(e.target.value);
+                  const c = clients.find((x) => x.id === e.target.value);
+                  setClientName(c?.name ?? "");
+                }}
+                className="mt-1 w-full min-w-0 px-3 py-2 rounded-lg border border-slate-200 text-[#0F172A] bg-white"
+              >
+                <option value="">Select client</option>
+                {clients.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name ?? c.id}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="md:col-span-2">
+              <label className="text-xs font-medium text-slate-600">Project (optional)</label>
+              <select
+                value={projectId}
+                onChange={(e) => {
+                  setProjectId(e.target.value);
+                  const p = projects.find((x) => x.id === e.target.value);
+                  setProjectName(p?.name ?? "");
+                  if (p?.clientId) setClientId(p.clientId);
+                  if (p?.clientName) setClientName(p.clientName);
+                }}
+                className="mt-1 w-full min-w-0 px-3 py-2 rounded-lg border border-slate-200 text-[#0F172A] bg-white"
+              >
+                <option value="">Select project</option>
+                {projects.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {(p.name ?? p.id) + (p.clientName ? ` — ${p.clientName}` : "")}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
             <div className="md:col-span-2">
               <label className="text-xs font-medium text-slate-600">Subject</label>
               <input
+                ref={subjectRef}
                 value={subject}
                 onChange={(e) => setSubject(e.target.value)}
                 className="mt-1 w-full min-w-0 px-3 py-2 rounded-lg border border-slate-200 text-[#0F172A]"
@@ -254,7 +385,10 @@ export default function PortalSupportPage() {
             </button>
             <button
               type="button"
-              onClick={() => setShowForm(false)}
+              onClick={() => {
+                setShowForm(false);
+                router.replace(pathname);
+              }}
               className="px-3 py-2 sm:px-4 rounded-lg border border-slate-300 text-slate-800 text-sm font-medium hover:bg-slate-50"
             >
               Cancel

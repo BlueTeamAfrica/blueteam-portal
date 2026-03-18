@@ -219,6 +219,19 @@ export default function ProjectDetailPage() {
               Go to client
             </Link>
             <Link
+              href={`/portal/support?${new URLSearchParams({
+                new: "1",
+                projectId: safeProject.id,
+                projectName: safeProject.name ?? "",
+                clientId: safeProject.clientId ?? "",
+                clientName: safeProject.clientName ?? "",
+                subject: safeProject.name ? `Project: ${safeProject.name} — Support request` : "Project support request",
+              }).toString()}`}
+              className="px-3 py-2 rounded-lg border border-slate-300 text-slate-800 text-sm font-medium hover:bg-slate-50"
+            >
+              Open support ticket
+            </Link>
+            <Link
               href="/portal/invoices"
               className="px-3 py-2 rounded-lg border border-slate-300 text-slate-800 text-sm font-medium hover:bg-slate-50"
             >

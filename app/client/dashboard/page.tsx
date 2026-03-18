@@ -109,6 +109,12 @@ export default function ClientDashboardPage() {
           Support Center
         </Link>
         <Link
+          href="/client/support?new=1"
+          className="inline-flex items-center px-4 py-2 rounded-lg border border-slate-200 bg-white text-[#0F172A] font-medium hover:bg-slate-50 transition-colors"
+        >
+          ➕ New Ticket
+        </Link>
+        <Link
           href="/client/invoices"
           className="inline-flex items-center px-4 py-2 rounded-lg border border-slate-200 bg-white text-[#0F172A] font-medium hover:bg-slate-50 transition-colors"
         >

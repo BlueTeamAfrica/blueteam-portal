@@ -267,6 +267,12 @@ export default function PortalPage() {
             Support Center
           </Link>
           <Link
+            href="/portal/support?new=1"
+            className="px-3 py-2 sm:px-4 rounded-lg border border-slate-300 text-sm text-slate-800 font-medium hover:bg-slate-50 whitespace-nowrap"
+          >
+            ➕ New Ticket
+          </Link>
+          <Link
             href="/portal/subscriptions"
             className="px-3 py-2 sm:px-4 rounded-lg border border-slate-300 text-sm text-slate-800 font-medium hover:bg-slate-50 whitespace-nowrap"
           >

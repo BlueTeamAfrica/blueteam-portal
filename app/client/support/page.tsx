@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
   addDoc,
   collection,
@@ -60,8 +61,11 @@ function statusBadge(s?: TicketStatus) {
 }
 
 export default function ClientSupportPage() {
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const { tenant, clientId } = useTenant();
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
 
   const [tickets, setTickets] = useState<TicketRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -70,7 +74,10 @@ export default function ClientSupportPage() {
   const [subject, setSubject] = useState("");
   const [description, setDescription] = useState("");
   const [priority, setPriority] = useState<TicketPriority>("medium");
+  const [projectId, setProjectId] = useState<string>("");
+  const [projectName, setProjectName] = useState<string>("");
   const [creating, setCreating] = useState(false);
+  const subjectRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     const tenantId = tenant?.id;
@@ -105,6 +112,26 @@ export default function ClientSupportPage() {
     load();
   }, [user, tenant?.id, clientId]);
 
+  // Open "new ticket" flow from query params, and optionally prefill project fields.
+  useEffect(() => {
+    if (!tenant?.id) return;
+    const newParam = searchParams?.get("new");
+    if (newParam !== "1") return;
+
+    setShowForm(true);
+    const qpSubject = searchParams?.get("subject");
+    const qpDescription = searchParams?.get("description");
+    const qpPriority = searchParams?.get("priority") as TicketPriority | null;
+    const qpProjectId = searchParams?.get("projectId");
+    const qpProjectName = searchParams?.get("projectName");
+    if (qpSubject) setSubject(qpSubject);
+    if (qpDescription) setDescription(qpDescription);
+    if (qpPriority && ["low", "medium", "high", "urgent"].includes(qpPriority)) setPriority(qpPriority);
+    if (qpProjectId) setProjectId(qpProjectId);
+    if (qpProjectName) setProjectName(qpProjectName);
+    setTimeout(() => subjectRef.current?.focus(), 0);
+  }, [searchParams, tenant?.id]);
+
   const hasTickets = useMemo(() => tickets.length > 0, [tickets.length]);
 
   async function handleCreateTicket(e: React.FormEvent) {
@@ -136,6 +163,8 @@ export default function ClientSupportPage() {
         status: "open",
         clientId,
         clientName,
+        projectId: projectId || undefined,
+        projectName: projectName || undefined,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
         createdByUid: user.uid,
@@ -145,7 +174,10 @@ export default function ClientSupportPage() {
       setSubject("");
       setDescription("");
       setPriority("medium");
+      setProjectId("");
+      setProjectName("");
       setShowForm(false);
+      router.replace(pathname);
 
       const snap = await getDocs(
         query(
@@ -165,6 +197,7 @@ export default function ClientSupportPage() {
     }
   }
 
+  if (authLoading) return <p className="text-[#0F172A]">Loading…</p>;
   if (!user) return <p className="text-[#0F172A]">Please log in</p>;
   if (!tenant) return <p className="text-[#0F172A]">Loading tenant…</p>;
   if (!clientId) return <p className="text-[#0F172A]">Loading client…</p>;
@@ -180,7 +213,11 @@ export default function ClientSupportPage() {
         </div>
         <button
           type="button"
-          onClick={() => setShowForm((v) => !v)}
+          onClick={() => {
+            setShowForm(true);
+            router.replace(`${pathname}?new=1`);
+            setTimeout(() => subjectRef.current?.focus(), 0);
+          }}
           className="px-3 py-2 sm:px-4 rounded-lg bg-[#4F46E5] text-white text-sm font-medium hover:bg-indigo-600 transition-colors whitespace-nowrap w-fit"
         >
           ➕ New Ticket
@@ -196,6 +233,7 @@ export default function ClientSupportPage() {
             <div className="md:col-span-2">
               <label className="text-xs font-medium text-slate-600">Subject</label>
               <input
+                ref={subjectRef}
                 value={subject}
                 onChange={(e) => setSubject(e.target.value)}
                 className="mt-1 w-full min-w-0 px-3 py-2 rounded-lg border border-slate-200 text-[#0F172A]"
@@ -217,6 +255,12 @@ export default function ClientSupportPage() {
               </select>
             </div>
           </div>
+          {(projectId || projectName) && (
+            <div className="text-xs text-slate-600">
+              <span className="text-slate-500">Linked project:</span>{" "}
+              <span className="font-medium">{projectName || projectId}</span>
+            </div>
+          )}
           <div>
             <label className="text-xs font-medium text-slate-600">Description</label>
             <textarea
@@ -237,7 +281,10 @@ export default function ClientSupportPage() {
             </button>
             <button
               type="button"
-              onClick={() => setShowForm(false)}
+              onClick={() => {
+                setShowForm(false);
+                router.replace(pathname);
+              }}
               className="px-3 py-2 sm:px-4 rounded-lg border border-slate-300 text-slate-800 text-sm font-medium hover:bg-slate-50"
             >
               Cancel
