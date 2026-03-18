@@ -74,7 +74,7 @@ function statusBadge(s?: TicketStatus) {
 export default function PortalTicketDetailPage() {
   const params = useParams();
   const ticketId = (params?.ticketId as string | undefined) ?? undefined;
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const { tenant } = useTenant();
 
   const [ticket, setTicket] = useState<(TicketDoc & { id: string }) | null>(null);
@@ -177,6 +177,7 @@ export default function PortalTicketDetailPage() {
     }
   }
 
+  if (authLoading) return <p className="text-[#0F172A]">Loading…</p>;
   if (!user) return <p className="text-[#0F172A]">Please log in</p>;
   if (!tenant) return <p className="text-[#0F172A]">Loading tenant…</p>;
   if (loading && !ticket) return <p className="text-[#0F172A]">Loading ticket…</p>;

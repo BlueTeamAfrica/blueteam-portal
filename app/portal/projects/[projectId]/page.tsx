@@ -68,7 +68,7 @@ function formatDateTime(ts: Timestamp | { toDate?: () => Date } | null | undefin
 export default function ProjectDetailPage() {
   const params = useParams();
   const projectId = params?.projectId as string | undefined;
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const { tenant } = useTenant();
   const [project, setProject] = useState<ProjectData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -127,6 +127,7 @@ export default function ProjectDetailPage() {
     load();
   }, [user, tenant?.id, projectId]);
 
+  if (authLoading) return <p className="text-[#0F172A]">Loading…</p>;
   if (!user) return <p className="text-[#0F172A]">Please log in</p>;
   if (!tenant) return <p className="text-[#0F172A]">Loading tenant…</p>;
   if (loading && !project) return <p className="text-[#0F172A]">Loading project…</p>;
@@ -195,18 +196,22 @@ export default function ProjectDetailPage() {
           </div>
           {/* Quick actions */}
           <div className="flex flex-wrap gap-2 shrink-0">
-            <Link
-              href="/portal/projects"
-              className="px-3 py-2 rounded-lg border border-slate-300 text-slate-800 text-sm font-medium hover:bg-slate-50"
+            <button
+              type="button"
+              disabled
+              className="px-3 py-2 rounded-lg border border-dashed border-slate-300 text-slate-400 text-sm font-medium bg-slate-50 cursor-not-allowed"
+              title="Edit project is coming soon."
             >
               Edit project
-            </Link>
-            <Link
-              href="/portal/projects"
-              className="px-3 py-2 rounded-lg border border-slate-300 text-slate-800 text-sm font-medium hover:bg-slate-50"
+            </button>
+            <button
+              type="button"
+              disabled
+              className="px-3 py-2 rounded-lg border border-dashed border-slate-300 text-slate-400 text-sm font-medium bg-slate-50 cursor-not-allowed"
+              title="Status updates are coming soon."
             >
               Mark status
-            </Link>
+            </button>
             <Link
               href={`/portal/clients${project.clientId ? `?highlight=${project.clientId}` : ""}`}
               className="px-3 py-2 rounded-lg border border-slate-300 text-slate-800 text-sm font-medium hover:bg-slate-50"
