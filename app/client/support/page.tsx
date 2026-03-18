@@ -69,6 +69,7 @@ export default function ClientSupportPage() {
 
   const [tickets, setTickets] = useState<TicketRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   const [showForm, setShowForm] = useState(false);
   const [subject, setSubject] = useState("");
@@ -90,6 +91,7 @@ export default function ClientSupportPage() {
 
     async function load() {
       setLoading(true);
+      setError(null);
       try {
         const snap = await getDocs(
           query(
@@ -104,6 +106,8 @@ export default function ClientSupportPage() {
             return { id: d.id, ...data };
           })
         );
+      } catch (e) {
+        setError("Unable to load tickets. If this is your first time using Support, an index or permission rule may be missing.");
       } finally {
         setLoading(false);
       }
@@ -143,6 +147,7 @@ export default function ClientSupportPage() {
     const tid = tenantId as string;
 
     setCreating(true);
+    setError(null);
     try {
       // Best-effort: resolve clientName from the client's doc if available.
       // If not present, we still create the ticket safely without a clientName field.
@@ -156,7 +161,7 @@ export default function ClientSupportPage() {
         clientName = undefined;
       }
 
-      await addDoc(collection(db, "tenants", tid, "tickets"), {
+      const created = await addDoc(collection(db, "tenants", tid, "tickets"), {
         subject: subject.trim(),
         description: description.trim(),
         priority,
@@ -178,20 +183,9 @@ export default function ClientSupportPage() {
       setProjectName("");
       setShowForm(false);
       router.replace(pathname);
-
-      const snap = await getDocs(
-        query(
-          collection(db, "tenants", tid, "tickets"),
-          where("clientId", "==", clientId),
-          orderBy("updatedAt", "desc")
-        )
-      );
-      setTickets(
-        snap.docs.map((d) => {
-          const data = d.data() as Omit<TicketRow, "id">;
-          return { id: d.id, ...data };
-        })
-      );
+      router.push(`/client/support/${created.id}`);
+    } catch (e) {
+      setError("Ticket could not be created. Firestore rejected the write (permissions or missing rules).");
     } finally {
       setCreating(false);
     }
@@ -223,6 +217,12 @@ export default function ClientSupportPage() {
           ➕ New Ticket
         </button>
       </div>
+
+      {error && (
+        <div className="bg-rose-50 border border-rose-200 text-rose-800 rounded-xl p-4 text-sm">
+          {error}
+        </div>
+      )}
 
       {showForm && (
         <form

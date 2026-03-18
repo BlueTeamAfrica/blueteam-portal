@@ -132,6 +132,34 @@ service cloud.firestore {
         allow write: if (hasTenantAccess(tenantId) || hasTenantAccessLegacy()) && isAdminOrOwner(tenantId);
       }
 
+      // Explicit: tenants/{tenantId}/tickets/{ticketId}
+      match /tickets/{ticketId} {
+        // Admins/owners can see all tenant tickets; clients can only see their own
+        allow read, list: if isTenantUser(tenantId)
+          || (isClientWithTenantAccess(tenantId) && resource.data.clientId == getClientIdFromUser());
+
+        // Admin/owner can create any ticket; clients can only create tickets for themselves
+        allow create: if ((hasTenantAccess(tenantId) || hasTenantAccessLegacy()) && isAdminOrOwner(tenantId))
+          || (isClientWithTenantAccess(tenantId)
+              && request.resource.data.clientId == getClientIdFromUser());
+
+        // Only admin/owner can update/delete tickets (e.g., status changes)
+        allow update, delete: if (hasTenantAccess(tenantId) || hasTenantAccessLegacy()) && isAdminOrOwner(tenantId);
+
+        // Replies subcollection: tenants/{tenantId}/tickets/{ticketId}/replies/{replyId}
+        match /replies/{replyId} {
+          allow read, list: if isTenantUser(tenantId)
+            || (isClientWithTenantAccess(tenantId)
+                && get(/databases/$(db)/documents/tenants/$(tenantId)/tickets/$(ticketId)).data.clientId == getClientIdFromUser());
+
+          allow create: if ((hasTenantAccess(tenantId) || hasTenantAccessLegacy()) && isAdminOrOwner(tenantId))
+            || (isClientWithTenantAccess(tenantId)
+                && get(/databases/$(db)/documents/tenants/$(tenantId)/tickets/$(ticketId)).data.clientId == getClientIdFromUser());
+
+          allow update, delete: if (hasTenantAccess(tenantId) || hasTenantAccessLegacy()) && isAdminOrOwner(tenantId);
+        }
+      }
+
       match /payments/{paymentId} {
         allow read: if hasTenantAccess(tenantId) || hasTenantAccessLegacy();
         allow write: if (hasTenantAccess(tenantId) || hasTenantAccessLegacy()) && isAdminOrOwner(tenantId);

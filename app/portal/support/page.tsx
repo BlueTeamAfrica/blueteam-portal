@@ -73,6 +73,7 @@ export default function PortalSupportPage() {
 
   const [tickets, setTickets] = useState<TicketRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   const [filterStatus, setFilterStatus] = useState<string>("all");
   const [filterPriority, setFilterPriority] = useState<string>("all");
@@ -102,6 +103,7 @@ export default function PortalSupportPage() {
 
     async function load() {
       setLoading(true);
+      setError(null);
       try {
         const snap = await getDocs(
           query(
@@ -115,6 +117,8 @@ export default function PortalSupportPage() {
             return { id: d.id, ...data };
           })
         );
+      } catch (e) {
+        setError("Unable to load tickets. Check Firestore rules/permissions for tenants/{tenantId}/tickets.");
       } finally {
         setLoading(false);
       }
@@ -193,6 +197,7 @@ export default function PortalSupportPage() {
     const tid = tenantId as string;
 
     setCreating(true);
+    setError(null);
     try {
       const resolvedClient =
         clientId ? clients.find((c) => c.id === clientId) : undefined;
@@ -201,7 +206,7 @@ export default function PortalSupportPage() {
       const finalClientName = clientName || resolvedClient?.name || resolvedProject?.clientName;
       const finalProjectName = projectName || resolvedProject?.name;
 
-      await addDoc(collection(db, "tenants", tid, "tickets"), {
+      const created = await addDoc(collection(db, "tenants", tid, "tickets"), {
         subject: subject.trim(),
         description: description.trim(),
         priority,
@@ -226,15 +231,9 @@ export default function PortalSupportPage() {
       setShowForm(false);
       router.replace(pathname);
 
-      const snap = await getDocs(
-        query(collection(db, "tenants", tid, "tickets"), orderBy("updatedAt", "desc"))
-      );
-      setTickets(
-        snap.docs.map((d) => {
-          const data = d.data() as Omit<TicketRow, "id">;
-          return { id: d.id, ...data };
-        })
-      );
+      router.push(`/portal/support/${created.id}`);
+    } catch (e) {
+      setError("Ticket could not be created. Firestore rejected the write (permissions or missing rules).");
     } finally {
       setCreating(false);
     }
@@ -265,6 +264,12 @@ export default function PortalSupportPage() {
           ➕ New Ticket
         </button>
       </div>
+
+      {error && (
+        <div className="bg-rose-50 border border-rose-200 text-rose-800 rounded-xl p-4 text-sm">
+          {error}
+        </div>
+      )}
 
       <div className="flex flex-wrap gap-2 items-center">
         <select
