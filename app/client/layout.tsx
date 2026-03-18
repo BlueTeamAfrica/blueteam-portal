@@ -11,6 +11,7 @@ import { useUserProfile } from "@/lib/userProfileContext";
 const nav = [
   { href: "/client/dashboard", label: "Dashboard" },
   { href: "/client/projects", label: "Projects" },
+  { href: "/client/services", label: "Services" },
   { href: "/client/invoices", label: "Invoices" },
   { href: "/client/subscriptions", label: "Subscriptions" },
   { href: "/client/support", label: "Support" },

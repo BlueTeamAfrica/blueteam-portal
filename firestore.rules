@@ -112,7 +112,8 @@ service cloud.firestore {
 
       // Services collection - enforce canServices flag and role
       match /services/{serviceId} {
-        allow read: if hasTenantAccess(tenantId) || hasTenantAccessLegacy();
+        allow read, list: if isTenantUser(tenantId)
+          || (isClientWithTenantAccess(tenantId) && resource.data.clientId == getClientIdFromUser());
         // Only admin/owner can write, and must have canServices permission
         allow update, delete: if (hasTenantAccess(tenantId) || hasTenantAccessLegacy()) && isAdminOrOwner(tenantId);
         allow create: if (hasTenantAccess(tenantId) || hasTenantAccessLegacy()) && isAdminOrOwner(tenantId)

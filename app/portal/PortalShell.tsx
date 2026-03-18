@@ -11,6 +11,7 @@ const nav = [
   { href: "/portal", label: "Dashboard" },
   { href: "/portal/clients", label: "Clients" },
   { href: "/portal/projects", label: "Projects" },
+  { href: "/portal/services", label: "Services" },
   { href: "/portal/invoices", label: "Invoices" },
   { href: "/portal/subscriptions", label: "Subscriptions" },
   { href: "/portal/support", label: "Support" },
