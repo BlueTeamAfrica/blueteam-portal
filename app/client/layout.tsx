@@ -13,6 +13,7 @@ const nav = [
   { href: "/client/projects", label: "Projects" },
   { href: "/client/invoices", label: "Invoices" },
   { href: "/client/subscriptions", label: "Subscriptions" },
+  { href: "/client/support", label: "Support" },
 ];
 
 export default function ClientLayout({

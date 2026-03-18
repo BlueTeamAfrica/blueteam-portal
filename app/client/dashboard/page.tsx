@@ -95,12 +95,18 @@ export default function ClientDashboardPage() {
         </div>
       </div>
 
-      <div className="mt-6 flex gap-3">
+      <div className="mt-6 flex flex-wrap gap-3">
         <Link
           href="/client/projects"
           className="inline-flex items-center px-4 py-2 rounded-lg bg-[#4F46E5] text-white font-medium hover:bg-indigo-600 transition-colors"
         >
           View Projects
+        </Link>
+        <Link
+          href="/client/support"
+          className="inline-flex items-center px-4 py-2 rounded-lg border border-slate-200 bg-white text-[#0F172A] font-medium hover:bg-slate-50 transition-colors"
+        >
+          Support Center
         </Link>
         <Link
           href="/client/invoices"

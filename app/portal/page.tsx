@@ -261,6 +261,12 @@ export default function PortalPage() {
             ➕ Create Invoice
           </Link>
           <Link
+            href="/portal/support"
+            className="px-3 py-2 sm:px-4 rounded-lg border border-slate-300 text-sm text-slate-800 font-medium hover:bg-slate-50 whitespace-nowrap"
+          >
+            Support Center
+          </Link>
+          <Link
             href="/portal/subscriptions"
             className="px-3 py-2 sm:px-4 rounded-lg border border-slate-300 text-sm text-slate-800 font-medium hover:bg-slate-50 whitespace-nowrap"
           >

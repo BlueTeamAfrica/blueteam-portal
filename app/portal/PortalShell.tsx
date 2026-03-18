@@ -13,6 +13,7 @@ const nav = [
   { href: "/portal/projects", label: "Projects" },
   { href: "/portal/invoices", label: "Invoices" },
   { href: "/portal/subscriptions", label: "Subscriptions" },
+  { href: "/portal/support", label: "Support" },
 ];
 
 function NavLinks({
