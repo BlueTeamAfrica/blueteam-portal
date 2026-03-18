@@ -161,20 +161,21 @@ export default function ClientSupportPage() {
         clientName = undefined;
       }
 
-      const payload = {
+      const payload: Record<string, unknown> = {
         subject: subject.trim(),
         description: description.trim(),
         priority,
         status: "open",
-        clientId,
-        clientName,
-        projectId: projectId || undefined,
-        projectName: projectName || undefined,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
         createdByUid: user.uid,
         createdByRole: "client",
-      } as const;
+      };
+
+      if (clientId) payload.clientId = clientId;
+      if (clientName) payload.clientName = clientName;
+      if (projectId) payload.projectId = projectId;
+      if (projectName) payload.projectName = projectName;
 
       // TEMP DEBUG: helps compare payload.clientId vs users/{uid}.clientId in rules (getClientIdFromUser()).
       console.log("SUPPORT DEBUG: create ticket", {

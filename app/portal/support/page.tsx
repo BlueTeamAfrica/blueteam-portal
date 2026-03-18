@@ -206,20 +206,24 @@ export default function PortalSupportPage() {
       const finalClientName = clientName || resolvedClient?.name || resolvedProject?.clientName;
       const finalProjectName = projectName || resolvedProject?.name;
 
-      const created = await addDoc(collection(db, "tenants", tid, "tickets"), {
+      const payload: Record<string, unknown> = {
         subject: subject.trim(),
         description: description.trim(),
         priority,
         status: "open",
-        clientId: clientId || resolvedProject?.clientId || undefined,
-        clientName: finalClientName || undefined,
-        projectId: projectId || undefined,
-        projectName: finalProjectName || undefined,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
         createdByUid: user.uid,
         createdByRole: "admin",
-      });
+      };
+
+      const finalClientId = clientId || resolvedProject?.clientId || "";
+      if (finalClientId) payload.clientId = finalClientId;
+      if (finalClientName) payload.clientName = finalClientName;
+      if (projectId) payload.projectId = projectId;
+      if (finalProjectName) payload.projectName = finalProjectName;
+
+      const created = await addDoc(collection(db, "tenants", tid, "tickets"), payload);
 
       setSubject("");
       setDescription("");
