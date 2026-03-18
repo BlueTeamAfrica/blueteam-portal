@@ -6,6 +6,7 @@ import { collection, getDocs, Timestamp } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useAuth } from "@/lib/authContext";
 import { useTenant } from "@/lib/tenantContext";
+import { MANAGED_SERVICE_CATEGORIES } from "@/lib/managedServiceCategories";
 
 type ServiceStatus = "active" | "paused" | "pending" | "cancelled" | "retired";
 
@@ -56,11 +57,23 @@ function StatusBadge({ status }: { status?: string }) {
 
 function CategoryBadge({ category }: { category?: string }) {
   if (!category) return <span className="text-slate-500">—</span>;
+
+  const normalized = normalizeCategory(category);
+  const label = MANAGED_SERVICE_CATEGORIES.find((o) => o.value === normalized)?.label ?? category;
   return (
     <span className="inline-flex px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-700 capitalize">
-      {category}
+      {label}
     </span>
   );
+}
+
+function normalizeCategory(input: string) {
+  return input
+    .trim()
+    .toLowerCase()
+    .replace(/[&/]/g, " ")
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "");
 }
 
 export default function PortalServicesPage() {
@@ -147,12 +160,6 @@ export default function PortalServicesPage() {
     return map;
   }, [projects]);
 
-  const categories = useMemo(() => {
-    const set = new Set<string>();
-    for (const s of services) if (s.category) set.add(String(s.category));
-    return Array.from(set).sort((a, b) => a.localeCompare(b));
-  }, [services]);
-
   const statuses = useMemo(() => {
     const set = new Set<string>();
     for (const s of services) if (s.status) set.add(String(s.status));
@@ -162,7 +169,7 @@ export default function PortalServicesPage() {
   const filtered = useMemo(() => {
     return services.filter((s) => {
       if (statusFilter !== "all" && String(s.status ?? "").toLowerCase() !== statusFilter) return false;
-      if (categoryFilter !== "all" && String(s.category ?? "").toLowerCase() !== categoryFilter) return false;
+      if (categoryFilter !== "all" && normalizeCategory(String(s.category ?? "")) !== categoryFilter) return false;
       if (clientFilter !== "all" && (s.clientId ?? "") !== clientFilter) return false;
       return true;
     });
@@ -214,9 +221,9 @@ export default function PortalServicesPage() {
               className="w-full px-3 py-2 rounded-lg border border-slate-200 text-[#0F172A] capitalize"
             >
               <option value="all">All</option>
-              {categories.map((c) => (
-                <option key={c} value={c.toLowerCase()}>
-                  {c}
+              {MANAGED_SERVICE_CATEGORIES.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
                 </option>
               ))}
             </select>
