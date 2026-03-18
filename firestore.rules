@@ -79,8 +79,13 @@ service cloud.firestore {
     match /userTenants/{mapId} {
       // Allow read if document ID matches userId_tenantId or userId_blueteam format
       allow read, list: if request.auth != null
-        && (mapId == request.auth.uid + "_blueteam" || 
-            mapId.matches(request.auth.uid + "_" + ".*"));
+        && (
+          // Deterministic mapping IDs (preferred)
+          mapId == request.auth.uid + "_blueteam"
+          || mapId.matches(request.auth.uid + "_" + ".*")
+          // Legacy/random doc IDs: allow only if the doc belongs to the authed user
+          || resource.data.userId == request.auth.uid
+        );
     }
 
     match /tenants/{tenantId} {
