@@ -78,7 +78,7 @@ service cloud.firestore {
 
     match /userTenants/{mapId} {
       // Allow read if document ID matches userId_tenantId or userId_blueteam format
-      allow read: if request.auth != null
+      allow read, list: if request.auth != null
         && (mapId == request.auth.uid + "_blueteam" || 
             mapId.matches(request.auth.uid + "_" + ".*"));
     }
