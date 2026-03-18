@@ -47,9 +47,11 @@ function StatusBadge({ status }: { status?: string }) {
         ? "bg-amber-100 text-amber-800"
         : normalized === "pending"
           ? "bg-indigo-100 text-indigo-800"
-          : normalized === "cancelled"
-            ? "bg-slate-200 text-slate-700"
-            : "bg-slate-100 text-slate-600";
+          : normalized === "completed"
+            ? "bg-emerald-200 text-emerald-900"
+            : normalized === "cancelled"
+              ? "bg-slate-200 text-slate-700"
+              : "bg-slate-100 text-slate-600";
 
   const label =
     normalized === "pending"
@@ -104,6 +106,10 @@ function normalizeServiceStatus(input: string) {
   return s;
 }
 
+function getTodayIso() {
+  return new Date().toISOString().slice(0, 10);
+}
+
 export default function PortalServicesPage() {
   const router = useRouter();
   const { user } = useAuth();
@@ -122,13 +128,11 @@ export default function PortalServicesPage() {
   const [createSubmitting, setCreateSubmitting] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
 
-  const todayIso = useMemo(() => new Date().toISOString().slice(0, 10), []);
-
   const [formClientId, setFormClientId] = useState<string>("");
   const [formCategory, setFormCategory] = useState<string>(MANAGED_SERVICE_CATEGORIES[0]?.value ?? "");
   const [formStatus, setFormStatus] = useState<string>("active");
   const [formProjectId, setFormProjectId] = useState<string>("");
-  const [formStartDate, setFormStartDate] = useState<string>(todayIso);
+  const [formStartDate, setFormStartDate] = useState<string>(() => getTodayIso());
   const [formRenewalDate, setFormRenewalDate] = useState<string>("");
   const [formNotes, setFormNotes] = useState<string>("");
 
@@ -201,7 +205,8 @@ export default function PortalServicesPage() {
     setFormNotes((v) => v);
 
     if (!formClientId && clients.length > 0) setFormClientId(clients[0].id);
-    if (!formStartDate) setFormStartDate(todayIso);
+    // Default start date should reflect the actual "today" each time the modal opens.
+    setFormStartDate(getTodayIso());
     if (!formProjectId) setFormProjectId("");
     if (!formCategory && MANAGED_SERVICE_CATEGORIES[0]?.value) setFormCategory(MANAGED_SERVICE_CATEGORIES[0].value);
   }, [showCreate]); // intentionally not depending on form fields
