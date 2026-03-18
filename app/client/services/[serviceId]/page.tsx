@@ -13,6 +13,7 @@ type Service = {
   category?: string;
   status?: string;
   description?: string;
+  notes?: string;
   tier?: string;
   renewalDate?: Timestamp;
   clientId?: string;
@@ -177,7 +178,7 @@ export default function ClientServiceDetailPage() {
           ) : null}
         </div>
         <p className="mt-3 text-slate-600 text-sm break-words">
-          {service.description ?? "No description yet."}
+          {service.description ?? service.notes ?? "No description yet."}
         </p>
         <div className="mt-5 grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div className="bg-slate-50 rounded-xl p-4 border border-slate-100">

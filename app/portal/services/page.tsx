@@ -2,7 +2,8 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { collection, getDocs, Timestamp } from "firebase/firestore";
+import { useRouter } from "next/navigation";
+import { addDoc, collection, getDocs, serverTimestamp, Timestamp } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useAuth } from "@/lib/authContext";
 import { useTenant } from "@/lib/tenantContext";
@@ -21,6 +22,7 @@ type Service = {
   tier?: string;
   status?: ServiceStatus | string;
   renewalDate?: Timestamp;
+  notes?: string;
   updatedAt?: Timestamp;
 };
 
@@ -37,20 +39,34 @@ function formatDate(ts?: Timestamp) {
 }
 
 function StatusBadge({ status }: { status?: string }) {
-  const s = (status ?? "").toLowerCase();
+  const normalized = normalizeServiceStatus(status ?? "");
   const styles =
-    s === "active"
+    normalized === "active"
       ? "bg-emerald-100 text-emerald-800"
-      : s === "paused"
+      : normalized === "paused"
         ? "bg-amber-100 text-amber-800"
-        : s === "pending"
+        : normalized === "pending"
           ? "bg-indigo-100 text-indigo-800"
-          : s === "cancelled" || s === "retired"
+          : normalized === "cancelled"
             ? "bg-slate-200 text-slate-700"
             : "bg-slate-100 text-slate-600";
+
+  const label =
+    normalized === "pending"
+      ? "Pending Setup"
+      : normalized === "active"
+        ? "Active"
+        : normalized === "paused"
+          ? "Paused"
+          : normalized === "completed"
+            ? "Completed"
+            : normalized === "cancelled"
+              ? "Cancelled"
+              : status ?? "—";
+
   return (
     <span className={`inline-flex px-2.5 py-0.5 rounded-full text-xs font-medium ${styles}`}>
-      {status ?? "—"}
+      {label}
     </span>
   );
 }
@@ -89,6 +105,7 @@ function normalizeServiceStatus(input: string) {
 }
 
 export default function PortalServicesPage() {
+  const router = useRouter();
   const { user } = useAuth();
   const { tenant } = useTenant();
   const [services, setServices] = useState<Service[]>([]);
@@ -101,64 +118,93 @@ export default function PortalServicesPage() {
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
   const [clientFilter, setClientFilter] = useState<string>("all");
 
-  useEffect(() => {
+  const [showCreate, setShowCreate] = useState(false);
+  const [createSubmitting, setCreateSubmitting] = useState(false);
+  const [createError, setCreateError] = useState<string | null>(null);
+
+  const todayIso = useMemo(() => new Date().toISOString().slice(0, 10), []);
+
+  const [formClientId, setFormClientId] = useState<string>("");
+  const [formCategory, setFormCategory] = useState<string>(MANAGED_SERVICE_CATEGORIES[0]?.value ?? "");
+  const [formStatus, setFormStatus] = useState<string>("active");
+  const [formProjectId, setFormProjectId] = useState<string>("");
+  const [formStartDate, setFormStartDate] = useState<string>(todayIso);
+  const [formRenewalDate, setFormRenewalDate] = useState<string>("");
+  const [formNotes, setFormNotes] = useState<string>("");
+
+  async function loadAll() {
     const tenantId = tenant?.id;
     if (!user || !tenantId) {
       setLoading(false);
       return;
     }
 
-    async function load() {
-      setLoading(true);
-      setError(null);
-      try {
-        const [svcSnap, clientsSnap, projectsSnap] = await Promise.all([
-          getDocs(collection(db, "tenants", tenantId as string, "services")),
-          getDocs(collection(db, "tenants", tenantId as string, "clients")),
-          getDocs(collection(db, "tenants", tenantId as string, "projects")),
-        ]);
+    setLoading(true);
+    setError(null);
+    try {
+      const [svcSnap, clientsSnap, projectsSnap] = await Promise.all([
+        getDocs(collection(db, "tenants", tenantId as string, "services")),
+        getDocs(collection(db, "tenants", tenantId as string, "clients")),
+        getDocs(collection(db, "tenants", tenantId as string, "projects")),
+      ]);
 
-        setClients(
-          clientsSnap.docs.map((d) => ({
+      setClients(
+        clientsSnap.docs.map((d) => ({
+          id: d.id,
+          name: d.data().name,
+          email: d.data().email,
+        }))
+      );
+      setProjects(
+        projectsSnap.docs.map((d) => ({
+          id: d.id,
+          name: d.data().name,
+        }))
+      );
+      setServices(
+        svcSnap.docs.map((d) => {
+          const data = d.data();
+          return {
             id: d.id,
-            name: d.data().name,
-            email: d.data().email,
-          }))
-        );
-        setProjects(
-          projectsSnap.docs.map((d) => ({
-            id: d.id,
-            name: d.data().name,
-          }))
-        );
-        setServices(
-          svcSnap.docs.map((d) => {
-            const data = d.data();
-            return {
-              id: d.id,
-              name: data.name,
-              clientId: data.clientId,
-              clientName: data.clientName,
-              projectId: data.projectId,
-              projectName: data.projectName,
-              category: data.category,
-              tier: data.tier ?? data.plan,
-              status: data.status,
-              renewalDate: data.renewalDate,
-              updatedAt: data.updatedAt,
-            };
-          })
-        );
-      } catch (e) {
-        const err = e as { message?: string };
-        setError(err.message ?? "Unable to load services. Please try again.");
-      } finally {
-        setLoading(false);
-      }
+            name: data.name,
+            clientId: data.clientId,
+            clientName: data.clientName,
+            projectId: data.projectId,
+            projectName: data.projectName,
+            category: data.category,
+            tier: data.tier ?? data.plan,
+            status: data.status,
+            renewalDate: data.renewalDate,
+            notes: data.notes,
+            updatedAt: data.updatedAt,
+          };
+        })
+      );
+    } catch (e) {
+      const err = e as { message?: string };
+      setError(err.message ?? "Unable to load services. Please try again.");
+    } finally {
+      setLoading(false);
     }
+  }
 
-    load();
+  useEffect(() => {
+    loadAll();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, tenant?.id]);
+
+  useEffect(() => {
+    if (!showCreate) return;
+    // Initialize sensible defaults only when opening the modal.
+    setCreateError(null);
+    setFormRenewalDate((v) => v);
+    setFormNotes((v) => v);
+
+    if (!formClientId && clients.length > 0) setFormClientId(clients[0].id);
+    if (!formStartDate) setFormStartDate(todayIso);
+    if (!formProjectId) setFormProjectId("");
+    if (!formCategory && MANAGED_SERVICE_CATEGORIES[0]?.value) setFormCategory(MANAGED_SERVICE_CATEGORIES[0].value);
+  }, [showCreate]); // intentionally not depending on form fields
 
   const clientLabelById = useMemo(() => {
     const map = new Map<string, string>();
@@ -198,6 +244,93 @@ export default function PortalServicesPage() {
   if (!tenant) return <p className="text-[#0F172A]">Loading tenant…</p>;
   if (loading) return <p className="text-[#0F172A]">Loading services…</p>;
 
+  async function handleCreateService(e: React.FormEvent) {
+    e.preventDefault();
+    if (!tenant?.id) return;
+
+    setCreateSubmitting(true);
+    setCreateError(null);
+
+    try {
+      const selectedClient = clients.find((c) => c.id === formClientId);
+      if (!selectedClient) {
+        setCreateError("Please select a client.");
+        return;
+      }
+
+      const categoryOpt = MANAGED_SERVICE_CATEGORIES.find((o) => o.value === formCategory);
+      if (!categoryOpt) {
+        setCreateError("Please select a service category.");
+        return;
+      }
+
+      const start = new Date(formStartDate);
+      if (Number.isNaN(start.getTime())) {
+        setCreateError("Please provide a valid start date.");
+        return;
+      }
+
+      const renewal = formRenewalDate ? new Date(formRenewalDate) : null;
+      if (renewal && Number.isNaN(renewal.getTime())) {
+        setCreateError("Please provide a valid renewal date.");
+        return;
+      }
+
+      const selectedProject = formProjectId
+        ? projects.find((p) => p.id === formProjectId)
+        : undefined;
+
+      const payload: Record<string, unknown> = {
+        clientId: formClientId,
+        clientName: selectedClient.name ?? selectedClient.email ?? selectedClient.id,
+        category: categoryOpt.value,
+        categoryLabel: categoryOpt.label,
+        status: formStatus,
+        startDate: Timestamp.fromDate(start),
+        renewalDate: renewal ? Timestamp.fromDate(renewal) : undefined,
+        notes: formNotes.trim() || "",
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      };
+
+      // Strip optional undefined values (Firestore rejects undefined fields)
+      if (!renewal) delete payload.renewalDate;
+      if (!selectedProject) {
+        delete payload.projectId;
+        delete payload.projectName;
+      } else {
+        payload.projectId = selectedProject.id;
+        payload.projectName = selectedProject.name ?? selectedProject.id;
+      }
+
+      // NOTE: we intentionally omit projectId/projectName unless selected.
+      if (!payload.projectId && selectedProject) {
+        payload.projectId = selectedProject.id;
+      }
+
+      const created = await addDoc(
+        collection(db, "tenants", tenant.id, "services"),
+        payload
+      );
+
+      // Redirect + refresh.
+      setShowCreate(false);
+      setFormNotes("");
+      setFormRenewalDate("");
+      setFormProjectId("");
+      router.replace("/portal/services");
+      await loadAll();
+
+      // If you want to deep-link into the new service, we can do it later.
+      void created;
+    } catch (e) {
+      const err = e as { message?: string };
+      setCreateError(err.message ?? "Failed to create service.");
+    } finally {
+      setCreateSubmitting(false);
+    }
+  }
+
   return (
     <div className="max-w-full min-w-0">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 md:gap-4">
@@ -207,6 +340,13 @@ export default function PortalServicesPage() {
             Managed services Blueteam actively operates for your clients.
           </p>
         </div>
+        <button
+          type="button"
+          onClick={() => setShowCreate(true)}
+          className="px-4 py-2 rounded-lg bg-[#4F46E5] text-white font-medium hover:bg-indigo-600 transition-colors w-fit"
+        >
+          ➕ Add Service
+        </button>
       </div>
 
       {error && (
@@ -263,6 +403,162 @@ export default function PortalServicesPage() {
           </div>
         </div>
       </div>
+
+      {showCreate && (
+        <div
+          className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-3"
+          role="dialog"
+          aria-modal="true"
+        >
+          <div className="bg-white rounded-2xl shadow-xl border border-slate-200 w-full max-w-3xl overflow-hidden">
+            <div className="p-5 md:p-6 border-b border-slate-200 flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <h2 className="text-[#0F172A] text-lg font-semibold break-words">Add Service</h2>
+                <p className="text-slate-500 text-sm mt-1 break-words">
+                  Assign a managed service to a client.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowCreate(false)}
+                className="p-2 rounded-lg text-slate-500 hover:text-[#0F172A] hover:bg-slate-100 transition-colors shrink-0"
+                aria-label="Close"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            <form onSubmit={handleCreateService} className="p-5 md:p-6 space-y-4">
+              {createError && (
+                <div className="bg-rose-50 border border-rose-200 rounded-xl p-3">
+                  <p className="text-rose-700 text-sm break-words">{createError}</p>
+                </div>
+              )}
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-[#0F172A] mb-1">Client *</label>
+                  <select
+                    value={formClientId}
+                    onChange={(e) => setFormClientId(e.target.value)}
+                    required
+                    className="w-full px-3 py-2 rounded-lg border border-slate-200 text-[#0F172A]"
+                  >
+                    <option value="" disabled>
+                      Select client
+                    </option>
+                    {clients.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.name ?? c.email ?? c.id}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-[#0F172A] mb-1">Service category *</label>
+                  <select
+                    value={formCategory}
+                    onChange={(e) => setFormCategory(e.target.value)}
+                    required
+                    className="w-full px-3 py-2 rounded-lg border border-slate-200 text-[#0F172A]"
+                  >
+                    {MANAGED_SERVICE_CATEGORIES.map((o) => (
+                      <option key={o.value} value={o.value}>
+                        {o.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-[#0F172A] mb-1">Status *</label>
+                  <select
+                    value={formStatus}
+                    onChange={(e) => setFormStatus(e.target.value)}
+                    required
+                    className="w-full px-3 py-2 rounded-lg border border-slate-200 text-[#0F172A]"
+                  >
+                    <option value="active">Active</option>
+                    <option value="pending">Pending Setup</option>
+                    <option value="paused">Paused</option>
+                    <option value="completed">Completed</option>
+                    <option value="cancelled">Cancelled</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-[#0F172A] mb-1">Project (optional)</label>
+                  <select
+                    value={formProjectId}
+                    onChange={(e) => setFormProjectId(e.target.value)}
+                    className="w-full px-3 py-2 rounded-lg border border-slate-200 text-[#0F172A]"
+                  >
+                    <option value="">None</option>
+                    {projects.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.name ?? p.id}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-[#0F172A] mb-1">Start date *</label>
+                  <input
+                    type="date"
+                    value={formStartDate}
+                    onChange={(e) => setFormStartDate(e.target.value)}
+                    required
+                    className="w-full px-3 py-2 rounded-lg border border-slate-200 text-[#0F172A]"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-[#0F172A] mb-1">Renewal date (optional)</label>
+                  <input
+                    type="date"
+                    value={formRenewalDate}
+                    onChange={(e) => setFormRenewalDate(e.target.value)}
+                    className="w-full px-3 py-2 rounded-lg border border-slate-200 text-[#0F172A]"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-[#0F172A] mb-1">Notes (optional)</label>
+                <textarea
+                  value={formNotes}
+                  onChange={(e) => setFormNotes(e.target.value)}
+                  rows={4}
+                  placeholder="Add internal notes / scope / handoff details..."
+                  className="w-full px-3 py-2 rounded-lg border border-slate-200 text-[#0F172A] placeholder:text-slate-400"
+                />
+              </div>
+
+              <div className="flex flex-wrap gap-2 justify-end pt-1">
+                <button
+                  type="button"
+                  onClick={() => setShowCreate(false)}
+                  disabled={createSubmitting}
+                  className="px-4 py-2 rounded-lg border border-slate-200 bg-white text-[#0F172A] font-medium disabled:opacity-60 disabled:cursor-not-allowed hover:bg-slate-50 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={createSubmitting}
+                  className="px-4 py-2 rounded-lg bg-[#4F46E5] text-white font-medium disabled:opacity-60 disabled:cursor-not-allowed hover:bg-indigo-600 transition-colors"
+                >
+                  {createSubmitting ? "Creating…" : "Create Service"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {filtered.length === 0 ? (
         <div className="mt-4 md:mt-6 bg-white rounded-xl shadow-sm border border-slate-200 p-6 md:p-12 text-center max-w-full">

@@ -13,6 +13,7 @@ type Service = {
   category?: string;
   status?: string;
   description?: string;
+  notes?: string;
   tier?: string;
   renewalDate?: Timestamp;
   clientId?: string;
@@ -171,7 +172,9 @@ export default function PortalServiceDetailPage() {
               ) : null}
             </div>
             <p className="mt-3 text-slate-600 text-sm break-words">
-              {service.description ?? "No description yet. Add `description` to the service document to show a summary here."}
+              {service.description ??
+                service.notes ??
+                "No description yet. Add `description` (or `notes`) to the service document to show a summary here."}
             </p>
             <p className="mt-3 text-xs text-slate-500 break-words">
               Last updated: {formatDateTime(service.updatedAt ?? service.createdAt)}
