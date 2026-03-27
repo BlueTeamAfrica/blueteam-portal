@@ -14,6 +14,19 @@ type Service = {
   status?: string;
   description?: string;
   notes?: string;
+  startDate?: Timestamp | null;
+  billingType?: "one_time" | "recurring" | string;
+  price?: number;
+  currency?: string;
+  interval?: "monthly" | "yearly" | string;
+  nextBillingDate?: Timestamp | null;
+  // Optional health fields (Service Health Dashboard V1)
+  health?: string; // "healthy" | "warning" | "critical" | "waiting_client" | "paused"
+  healthNote?: string;
+  lastCheckedAt?: Timestamp | null;
+  nextAction?: string;
+  nextActionDue?: Timestamp | null;
+  operationalSummary?: string;
   tier?: string;
   renewalDate?: Timestamp;
   clientId?: string;
@@ -24,7 +37,7 @@ type Service = {
   createdAt?: Timestamp;
 };
 
-function formatDateTime(ts?: Timestamp) {
+function formatDateTime(ts?: Timestamp | null) {
   if (!ts) return "—";
   try {
     return ts.toDate().toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
@@ -33,7 +46,7 @@ function formatDateTime(ts?: Timestamp) {
   }
 }
 
-function formatDate(ts?: Timestamp) {
+function formatDate(ts?: Timestamp | null) {
   if (!ts) return "—";
   try {
     return ts.toDate().toLocaleDateString(undefined, { dateStyle: "medium" });
@@ -57,6 +70,49 @@ function StatusBadge({ status }: { status?: string }) {
   return (
     <span className={`inline-flex px-2.5 py-0.5 rounded-full text-xs font-medium ${styles}`}>
       {status ?? "—"}
+    </span>
+  );
+}
+
+function normalizeHealth(input: string) {
+  const s = input.trim().toLowerCase();
+  if (!s) return "";
+  if (s === "healthy") return "healthy";
+  if (s === "warning" || s === "warn") return "warning";
+  if (s === "critical") return "critical";
+  if (s === "waiting_client" || s === "waiting client" || s === "waiting-on-client") return "waiting_client";
+  if (s === "paused") return "paused";
+  return s;
+}
+
+function getHealthLabel(health?: string) {
+  const h = normalizeHealth(health ?? "");
+  if (h === "healthy") return "Healthy";
+  if (h === "warning") return "Warning";
+  if (h === "critical") return "Critical";
+  if (h === "waiting_client") return "Waiting on Client";
+  if (h === "paused") return "Paused";
+  return health ?? "—";
+}
+
+function HealthBadge({ health }: { health?: string }) {
+  const h = normalizeHealth(health ?? "");
+  const styles =
+    h === "healthy"
+      ? "bg-emerald-100 text-emerald-800"
+      : h === "warning"
+        ? "bg-amber-100 text-amber-800"
+        : h === "critical"
+          ? "bg-rose-100 text-rose-800"
+          : h === "waiting_client"
+            ? "bg-indigo-100 text-indigo-800"
+            : h === "paused"
+              ? "bg-slate-200 text-slate-700"
+              : "bg-slate-100 text-slate-600";
+
+  return (
+    <span className={`inline-flex px-2.5 py-0.5 rounded-full text-xs font-medium ${styles}`}>
+      {getHealthLabel(health)}
     </span>
   );
 }
@@ -150,12 +206,22 @@ export default function ClientServiceDetailPage() {
         <Link href="/client/services" className="text-indigo-600 hover:underline text-sm">
           ← Back to services
         </Link>
-        <Link
-          href={supportHref}
-          className="inline-flex px-3 py-2 rounded-lg bg-[#4F46E5] text-white text-sm font-medium hover:bg-indigo-600 transition-colors"
-        >
-          Get support
-        </Link>
+        <div className="flex flex-wrap gap-2">
+          <Link
+            href={supportHref}
+            className="inline-flex px-3 py-2 rounded-lg bg-[#4F46E5] text-white text-sm font-medium hover:bg-indigo-600 transition-colors"
+          >
+            Open support ticket
+          </Link>
+          {service.projectId ? (
+            <Link
+              href="/client/projects"
+              className="inline-flex px-3 py-2 rounded-lg border border-slate-200 bg-white text-[#0F172A] text-sm font-medium hover:bg-slate-50 transition-colors"
+            >
+              View linked project
+            </Link>
+          ) : null}
+        </div>
       </div>
 
       {error && (
@@ -178,16 +244,24 @@ export default function ClientServiceDetailPage() {
           ) : null}
         </div>
         <p className="mt-3 text-slate-600 text-sm break-words">
-          {service.description ?? service.notes ?? "No description yet."}
+          {service.description ?? "No description yet."}
         </p>
         <div className="mt-5 grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="bg-slate-50 rounded-xl p-4 border border-slate-100">
+            <p className="text-xs text-slate-500">Start date</p>
+            <p className="mt-1 text-[#0F172A] font-medium break-words">{formatDate(service.startDate ?? null)}</p>
+          </div>
           <div className="bg-slate-50 rounded-xl p-4 border border-slate-100">
             <p className="text-xs text-slate-500">Renewal date</p>
             <p className="mt-1 text-[#0F172A] font-medium">{formatDate(service.renewalDate)}</p>
           </div>
           <div className="bg-slate-50 rounded-xl p-4 border border-slate-100">
             <p className="text-xs text-slate-500">Linked project</p>
-            <p className="mt-1 text-[#0F172A] font-medium break-words">{service.projectName ?? service.projectId ?? "—"}</p>
+            <p className="mt-1 text-[#0F172A] font-medium break-words">{service.projectName ?? service.projectId ?? "No linked project"}</p>
+          </div>
+          <div className="bg-slate-50 rounded-xl p-4 border border-slate-100 sm:col-span-2">
+            <p className="text-xs text-slate-500">Notes</p>
+            <p className="mt-1 text-sm text-[#0F172A] whitespace-pre-wrap break-words">{service.notes ?? "No notes yet."}</p>
           </div>
           <div className="bg-slate-50 rounded-xl p-4 border border-slate-100">
             <p className="text-xs text-slate-500">Created</p>
@@ -197,6 +271,74 @@ export default function ClientServiceDetailPage() {
             <p className="text-xs text-slate-500">Updated</p>
             <p className="mt-1 text-[#0F172A]">{formatDateTime(service.updatedAt)}</p>
           </div>
+        </div>
+      </div>
+
+      <div className="mt-4 bg-white rounded-2xl shadow-sm border border-slate-200 p-5 md:p-6 max-w-full">
+        <h2 className="text-[#0F172A] font-semibold">Billing</h2>
+        <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="bg-slate-50 rounded-xl p-4 border border-slate-100">
+            <p className="text-xs text-slate-500">Billing type</p>
+            <p className="mt-1 text-sm text-[#0F172A] font-medium break-words">{service.billingType ?? "—"}</p>
+          </div>
+          <div className="bg-slate-50 rounded-xl p-4 border border-slate-100">
+            <p className="text-xs text-slate-500">Price</p>
+            <p className="mt-1 text-sm text-[#0F172A] font-medium break-words">
+              {typeof service.price === "number"
+                ? `${service.currency ?? "USD"} ${service.price.toLocaleString()}`
+                : "—"}
+            </p>
+          </div>
+          <div className="bg-slate-50 rounded-xl p-4 border border-slate-100">
+            <p className="text-xs text-slate-500">Interval</p>
+            <p className="mt-1 text-sm text-[#0F172A] font-medium break-words">{service.interval ?? "—"}</p>
+          </div>
+          <div className="bg-slate-50 rounded-xl p-4 border border-slate-100">
+            <p className="text-xs text-slate-500">Next billing date</p>
+            <p className="mt-1 text-sm text-[#0F172A] font-medium break-words">
+              {formatDate(service.nextBillingDate ?? null)}
+            </p>
+          </div>
+        </div>
+        <p className="mt-3 text-xs text-slate-500">
+          Billing is managed by Blueteam; contact support if you need changes.
+        </p>
+      </div>
+
+      <div className="mt-4 bg-white rounded-2xl shadow-sm border border-slate-200 p-5 md:p-6 max-w-full">
+        <h2 className="text-[#0F172A] font-semibold">Health</h2>
+
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          <HealthBadge health={service.health} />
+          {service.healthNote ? (
+            <span className="inline-flex px-2.5 py-0.5 rounded-full text-xs font-medium bg-white text-slate-700">
+              {service.healthNote}
+            </span>
+          ) : null}
+        </div>
+
+        <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="bg-slate-50 rounded-xl p-4 border border-slate-100">
+            <p className="text-xs text-slate-500">Last checked</p>
+            <p className="mt-1 text-sm text-[#0F172A] font-medium break-words">
+              {formatDateTime(service.lastCheckedAt ?? service.updatedAt ?? service.createdAt)}
+            </p>
+          </div>
+
+          <div className="bg-slate-50 rounded-xl p-4 border border-slate-100">
+            <p className="text-xs text-slate-500">Next action</p>
+            <p className="mt-1 text-sm text-[#0F172A] font-medium break-words">{service.nextAction ?? "—"}</p>
+            <p className="text-xs text-slate-500 mt-2">
+              Due: {formatDate(service.nextActionDue ?? null)}
+            </p>
+          </div>
+        </div>
+
+        <div className="mt-4 bg-slate-50 rounded-xl p-4 border border-slate-100">
+          <p className="text-xs text-slate-500">Operational summary</p>
+          <p className="mt-2 text-sm text-slate-700 whitespace-pre-wrap break-words">
+            {service.operationalSummary ?? "—"}
+          </p>
         </div>
       </div>
     </div>

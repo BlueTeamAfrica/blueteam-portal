@@ -54,6 +54,10 @@ export async function GET(
     if (mem.status !== "active") {
       return NextResponse.json({ error: "Not authorized" }, { status: 403 });
     }
+    const role = mem.role ?? "";
+    if (!["owner", "admin", "client"].includes(role)) {
+      return NextResponse.json({ error: "Not authorized" }, { status: 403 });
+    }
 
     const invRef = db.collection("tenants").doc(tenantId).collection("invoices").doc(invoiceId);
     const invSnap = await invRef.get();
@@ -73,7 +77,7 @@ export async function GET(
       lineItems?: Array<{ description: string; amount: number; currency?: string }>;
     };
 
-    if (mem.role === "client") {
+    if (role === "client") {
       if (invData.clientId !== mem.clientId) {
         return NextResponse.json({ error: "Access denied" }, { status: 403 });
       }

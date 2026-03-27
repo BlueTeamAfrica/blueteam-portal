@@ -188,15 +188,6 @@ export default function ClientSupportPage() {
       if (projectId) payload.projectId = projectId;
       if (projectName) payload.projectName = projectName;
 
-      // TEMP DEBUG: helps compare payload.clientId vs users/{uid}.clientId in rules (getClientIdFromUser()).
-      console.log("SUPPORT DEBUG: create ticket", {
-        tenantId: tid,
-        uid: user.uid,
-        createdByRole: "client",
-        clientIdFromTenantContext: clientId,
-        payload,
-      });
-
       const created = await addDoc(collection(db, "tenants", tid, "tickets"), payload);
 
       setSubject("");
@@ -209,7 +200,6 @@ export default function ClientSupportPage() {
       router.push(`/client/support/${created.id}`);
     } catch (e) {
       const err = e as { code?: string; message?: string };
-      console.log("SUPPORT DEBUG: create ticket failed", err);
       setError(
         "Ticket could not be created. " +
           (err.code ? `(${err.code}) ` : "") +
@@ -380,4 +370,3 @@ export default function ClientSupportPage() {
     </div>
   );
 }
-

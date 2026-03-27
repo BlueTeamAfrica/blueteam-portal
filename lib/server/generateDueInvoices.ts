@@ -124,6 +124,7 @@ export async function generateDueInvoicesForTenant(tenantId: string): Promise<Ge
 
         const subStatus = sub.status as SubStatus;
         if (subStatus !== "active") {
+          skippedCount += 1;
           console.log("INVOICE DEBUG: skipped", {
             tenantId,
             subscriptionId,
@@ -167,6 +168,7 @@ export async function generateDueInvoicesForTenant(tenantId: string): Promise<Ge
           : new Date((sub.nextBillingDate as unknown) as string);
 
         if (oldNextBillingDate.getTime() > now.getTime()) {
+          skippedCount += 1;
           console.log("INVOICE DEBUG: skipped – nextBillingDate in future", {
             tenantId,
             subscriptionId,

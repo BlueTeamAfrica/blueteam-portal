@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { collection, getDocs, query, where, Timestamp } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useAuth } from "@/lib/authContext";
@@ -47,6 +48,7 @@ function StatusBadge({ status }: { status?: string }) {
 }
 
 export default function ClientServicesPage() {
+  const router = useRouter();
   const { user } = useAuth();
   const { tenant, role, clientId } = useTenant();
   const [services, setServices] = useState<Service[]>([]);
@@ -148,9 +150,21 @@ export default function ClientServicesPage() {
               </thead>
               <tbody>
                 {rows.map((s) => (
-                  <tr key={s.id} className="border-b border-slate-100 last:border-0 hover:bg-slate-50/50">
+                  <tr
+                    key={s.id}
+                    className="border-b border-slate-100 last:border-0 hover:bg-slate-50/50 cursor-pointer"
+                    onClick={() => router.push(`/client/services/${s.id}`)}
+                    role="link"
+                    tabIndex={0}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        router.push(`/client/services/${s.id}`);
+                      }
+                    }}
+                  >
                     <td className="py-3 px-4 text-[#0F172A] font-medium">
-                      <Link href={`/client/services/${s.id}`} className="text-indigo-600 hover:underline">
+                      <Link href={`/client/services/${s.id}`} className="text-indigo-600 hover:underline focus:outline-none" onClick={(e) => e.stopPropagation()}>
                         {s.name ?? "—"}
                       </Link>
                       {s.tier ? <div className="text-xs text-slate-500 mt-0.5">Tier: {s.tier}</div> : null}
