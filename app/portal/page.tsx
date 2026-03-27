@@ -18,13 +18,21 @@ type Kpis = {
 
 type RecentActivityItem = {
   id: string;
-  type: "invoice" | "project" | "subscription";
+  type: "invoice" | "project" | "subscription" | "service";
   title: string;
   subtitle?: string;
   dateLabel: string;
   icon: string;
   timestamp?: Date;
 };
+
+function getBillingTypeLabel(v?: string) {
+  const s = (v ?? "").toLowerCase();
+  if (s === "none") return "Not billable";
+  if (s === "one_time") return "One-time";
+  if (s === "recurring") return "Recurring";
+  return v ? v : "—";
+}
 
 export default function PortalPage() {
   const { user } = useAuth();
@@ -102,8 +110,8 @@ export default function PortalPage() {
           }
         });
 
-        // Recent activity: mix of latest invoices, subscriptions, projects
-        const [recentInvoicesSnap, recentSubsSnap, recentProjectsSnap] = await Promise.all([
+        // Recent activity: mix of latest invoices, subscriptions, projects, services
+        const [recentInvoicesSnap, recentSubsSnap, recentProjectsSnap, recentServicesSnap] = await Promise.all([
           getDocs(
             query(
               collection(db, "tenants", tenantId as string, "invoices"),
@@ -114,7 +122,7 @@ export default function PortalPage() {
           getDocs(
             query(
               collection(db, "tenants", tenantId as string, "subscriptions"),
-              orderBy("createdAt", "desc"),
+              orderBy("updatedAt", "desc"),
               limit(5)
             )
           ),
@@ -125,9 +133,27 @@ export default function PortalPage() {
               limit(5)
             )
           ),
+          getDocs(
+            query(
+              collection(db, "tenants", tenantId as string, "services"),
+              orderBy("updatedAt", "desc"),
+              limit(8)
+            )
+          ),
         ]);
 
         const activity: RecentActivityItem[] = [];
+
+        // Build a lightweight subscriptionId -> service mapping for better labels
+        const serviceBySubId = new Map<string, { serviceName: string; billingType?: string }>();
+        recentServicesSnap.forEach((doc) => {
+          const data = doc.data() as { name?: string; subscriptionId?: string; billingType?: string };
+          if (!data.subscriptionId) return;
+          serviceBySubId.set(data.subscriptionId, {
+            serviceName: data.name ?? "Service",
+            billingType: data.billingType,
+          });
+        });
 
         recentInvoicesSnap.forEach((doc) => {
           const data = doc.data() as {
@@ -137,17 +163,21 @@ export default function PortalPage() {
             amount?: number;
             currency?: string;
             status?: string;
+            subscriptionId?: string;
           };
           const createdAt =
             data.createdAt && typeof data.createdAt.toDate === "function"
               ? data.createdAt.toDate()
               : undefined;
+          const service = data.subscriptionId ? serviceBySubId.get(data.subscriptionId) : undefined;
           activity.push({
             id: doc.id,
             type: "invoice",
-            title: data.invoiceNumber
-              ? `Invoice ${data.invoiceNumber} generated`
-              : "Invoice generated",
+            title: service
+              ? `Invoice generated for service "${service.serviceName}"`
+              : data.invoiceNumber
+                ? `Invoice ${data.invoiceNumber} generated`
+                : "Invoice generated",
             subtitle: data.clientName
               ? `${data.clientName}${
                   typeof data.amount === "number"
@@ -168,22 +198,33 @@ export default function PortalPage() {
             name?: string;
             clientName?: string;
             createdAt?: { toDate?: () => Date };
+            updatedAt?: { toDate?: () => Date };
             status?: string;
           };
-          const createdAt =
-            data.createdAt && typeof data.createdAt.toDate === "function"
-              ? data.createdAt.toDate()
-              : undefined;
+          const updatedAt =
+            data.updatedAt && typeof data.updatedAt.toDate === "function"
+              ? data.updatedAt.toDate()
+              : data.createdAt && typeof data.createdAt.toDate === "function"
+                ? data.createdAt.toDate()
+                : undefined;
+          const service = serviceBySubId.get(doc.id);
+          const status = (data.status ?? "").toLowerCase();
           activity.push({
             id: doc.id,
             type: "subscription",
-            title: data.name ? `Subscription "${data.name}" updated` : "Subscription updated",
+            title: service
+              ? status === "paused"
+                ? `Subscription paused for service "${service.serviceName}"`
+                : `Subscription updated for service "${service.serviceName}"`
+              : data.name
+                ? `Subscription "${data.name}" updated`
+                : "Subscription updated",
             subtitle: data.clientName ?? undefined,
-            dateLabel: createdAt
-              ? createdAt.toLocaleDateString(undefined, { month: "short", day: "numeric" })
+            dateLabel: updatedAt
+              ? updatedAt.toLocaleDateString(undefined, { month: "short", day: "numeric" })
               : "—",
             icon: "🔁",
-            timestamp: createdAt,
+            timestamp: updatedAt,
           });
         });
 
@@ -209,6 +250,77 @@ export default function PortalPage() {
             icon: "📁",
             timestamp: createdAt,
           });
+        });
+
+        recentServicesSnap.forEach((doc) => {
+          const data = doc.data() as {
+            name?: string;
+            clientName?: string;
+            createdAt?: { toDate?: () => Date };
+            updatedAt?: { toDate?: () => Date };
+            billingType?: string;
+            subscriptionId?: string;
+          };
+          const createdAt =
+            data.createdAt && typeof data.createdAt.toDate === "function"
+              ? data.createdAt.toDate()
+              : undefined;
+          const updatedAt =
+            data.updatedAt && typeof data.updatedAt.toDate === "function"
+              ? data.updatedAt.toDate()
+              : createdAt;
+
+          // Core events (lightweight, based on available fields)
+          if (createdAt) {
+            activity.push({
+              id: `${doc.id}_created`,
+              type: "service",
+              title: data.name ? `Service "${data.name}" created` : "Service created",
+              subtitle: data.clientName ? `Client: ${data.clientName}` : undefined,
+              dateLabel: createdAt.toLocaleDateString(undefined, { month: "short", day: "numeric" }),
+              icon: "🛠️",
+              timestamp: createdAt,
+            });
+          }
+
+          if (updatedAt && createdAt && updatedAt.getTime() - createdAt.getTime() > 2 * 60 * 1000) {
+            activity.push({
+              id: `${doc.id}_updated`,
+              type: "service",
+              title: data.name ? `Service "${data.name}" updated` : "Service updated",
+              subtitle: data.clientName ? `Client: ${data.clientName}` : undefined,
+              dateLabel: updatedAt.toLocaleDateString(undefined, { month: "short", day: "numeric" }),
+              icon: "🧾",
+              timestamp: updatedAt,
+            });
+          }
+
+          const bt = (data.billingType ?? "").toLowerCase();
+          if (updatedAt && bt === "recurring") {
+            activity.push({
+              id: `${doc.id}_recurring`,
+              type: "service",
+              title: data.name ? `Service "${data.name}" set to Recurring` : "Service set to Recurring",
+              subtitle: data.clientName ? `Client: ${data.clientName}` : undefined,
+              dateLabel: updatedAt.toLocaleDateString(undefined, { month: "short", day: "numeric" }),
+              icon: "💳",
+              timestamp: updatedAt,
+            });
+          }
+
+          if (updatedAt && data.subscriptionId && bt === "recurring") {
+            activity.push({
+              id: `${doc.id}_sub_linked`,
+              type: "service",
+              title: data.name
+                ? `Subscription created for service "${data.name}"`
+                : "Subscription created for service",
+              subtitle: data.clientName ? `Client: ${data.clientName}` : undefined,
+              dateLabel: updatedAt.toLocaleDateString(undefined, { month: "short", day: "numeric" }),
+              icon: "🔗",
+              timestamp: updatedAt,
+            });
+          }
         });
 
         // Sort mixed activity by recency and limit
