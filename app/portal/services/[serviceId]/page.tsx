@@ -16,7 +16,7 @@ import { db } from "@/lib/firebase";
 import { useAuth } from "@/lib/authContext";
 import { useTenant } from "@/lib/tenantContext";
 
-type BillingType = "one_time" | "recurring";
+type BillingType = "none" | "one_time" | "recurring";
 type BillingInterval = "monthly" | "yearly";
 
 type Service = {
@@ -201,7 +201,7 @@ export default function PortalServiceDetailPage() {
 
   // Billing editing state (portal admins/owners only)
   const canEditBilling = role === "admin" || role === "owner";
-  const [billingType, setBillingType] = useState<BillingType>("one_time");
+  const [billingType, setBillingType] = useState<BillingType>("none");
   const [billingPrice, setBillingPrice] = useState<string>("");
   const [billingCurrency, setBillingCurrency] = useState<string>("USD");
   const [billingInterval, setBillingInterval] = useState<BillingInterval>("monthly");
@@ -255,7 +255,9 @@ export default function PortalServiceDetailPage() {
     if (!service) return;
     if (!canEditBilling) return;
     const bt = (service.billingType ?? "one_time") as BillingType;
-    setBillingType(bt === "recurring" ? "recurring" : "one_time");
+    if (bt === "recurring") setBillingType("recurring");
+    else if (bt === "one_time") setBillingType("one_time");
+    else setBillingType("none");
     setBillingPrice(typeof service.price === "number" ? String(service.price) : "");
     setBillingCurrency((service.currency ?? "USD").toUpperCase());
     const iv = (service.interval ?? "monthly") as BillingInterval;
@@ -319,6 +321,7 @@ export default function PortalServiceDetailPage() {
         return;
       }
 
+      const prevSubscriptionId = service?.subscriptionId ?? null;
       const priceNumber = billingPrice.trim() === "" ? null : Number.parseFloat(billingPrice);
       if (billingType === "recurring") {
         if (priceNumber == null || Number.isNaN(priceNumber) || priceNumber < 0) {
@@ -329,6 +332,8 @@ export default function PortalServiceDetailPage() {
           setBillingUpdateError("Please provide a currency (e.g. USD).");
           return;
         }
+      } else if (billingType === "none") {
+        // Not billable: ignore price/currency/interval/next date.
       } else if (priceNumber != null && (Number.isNaN(priceNumber) || priceNumber < 0)) {
         setBillingUpdateError("Please provide a valid price (0 or more).");
         return;
@@ -349,11 +354,17 @@ export default function PortalServiceDetailPage() {
 
       await updateDoc(svcRef, {
         billingType,
-        price: priceNumber ?? null,
-        currency: billingCurrency.trim() ? billingCurrency.trim().toUpperCase() : null,
+        price: billingType === "none" ? null : priceNumber ?? null,
+        currency:
+          billingType === "none"
+            ? null
+            : billingCurrency.trim()
+              ? billingCurrency.trim().toUpperCase()
+              : null,
         interval: billingType === "recurring" ? billingInterval : null,
         startDate: Timestamp.fromDate(start),
-        nextBillingDate: nextDate ? Timestamp.fromDate(nextDate) : null,
+        nextBillingDate: billingType === "recurring" && nextDate ? Timestamp.fromDate(nextDate) : null,
+        subscriptionId: billingType === "recurring" ? (service?.subscriptionId ?? null) : null,
         updatedAt: serverTimestamp(),
       });
 
@@ -397,6 +408,13 @@ export default function PortalServiceDetailPage() {
           });
           await updateDoc(svcRef, { subscriptionId: createdSub.id, updatedAt: serverTimestamp() });
         }
+      } else if (prevSubscriptionId) {
+        // Downgrade from recurring to one_time/none: pause the old subscription and unlink.
+        await updateDoc(doc(db, "tenants", tid, "subscriptions", prevSubscriptionId), {
+          status: "paused",
+          updatedAt: serverTimestamp(),
+        });
+        await updateDoc(svcRef, { subscriptionId: null, updatedAt: serverTimestamp() });
       }
 
       const snap = await getDoc(svcRef);
@@ -727,6 +745,7 @@ export default function PortalServiceDetailPage() {
                         onChange={(e) => setBillingType(e.target.value as BillingType)}
                         className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-[#0F172A] focus:outline-none focus:ring-2 focus:ring-indigo-200"
                       >
+                        <option value="none">Not billable</option>
                         <option value="one_time">One-time</option>
                         <option value="recurring">Recurring</option>
                       </select>
@@ -743,6 +762,7 @@ export default function PortalServiceDetailPage() {
                         value={billingPrice}
                         onChange={(e) => setBillingPrice(e.target.value)}
                         required={billingType === "recurring"}
+                        disabled={billingType === "none"}
                         className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-[#0F172A] focus:outline-none focus:ring-2 focus:ring-indigo-200"
                         placeholder="0.00"
                       />
@@ -757,6 +777,7 @@ export default function PortalServiceDetailPage() {
                         value={billingCurrency}
                         onChange={(e) => setBillingCurrency(e.target.value.toUpperCase())}
                         required={billingType === "recurring"}
+                        disabled={billingType === "none"}
                         className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-[#0F172A] focus:outline-none focus:ring-2 focus:ring-indigo-200"
                         placeholder="USD"
                       />

@@ -18,7 +18,7 @@ import { useTenant } from "@/lib/tenantContext";
 import { MANAGED_SERVICE_CATEGORIES } from "@/lib/managedServiceCategories";
 
 type ServiceStatus = "active" | "paused" | "pending" | "cancelled" | "retired";
-type BillingType = "one_time" | "recurring";
+type BillingType = "none" | "one_time" | "recurring";
 type BillingInterval = "monthly" | "yearly";
 
 type Service = {
@@ -172,7 +172,7 @@ export default function PortalServicesPage() {
   const [formStartDate, setFormStartDate] = useState<string>(() => getTodayIso());
   const [formRenewalDate, setFormRenewalDate] = useState<string>("");
   const [formNotes, setFormNotes] = useState<string>("");
-  const [formBillingType, setFormBillingType] = useState<BillingType>("one_time");
+  const [formBillingType, setFormBillingType] = useState<BillingType>("none");
   const [formPrice, setFormPrice] = useState<string>("");
   const [formCurrency, setFormCurrency] = useState<string>("USD");
   const [formInterval, setFormInterval] = useState<BillingInterval>("monthly");
@@ -335,6 +335,8 @@ export default function PortalServicesPage() {
           setCreateError("Please provide a currency (e.g. USD).");
           return;
         }
+      } else if (billingType === "none") {
+        // Not billable: ignore any billing inputs
       } else if (priceNumber != null && (Number.isNaN(priceNumber) || priceNumber < 0)) {
         setCreateError("Please provide a valid price (0 or more).");
         return;
@@ -359,6 +361,7 @@ export default function PortalServicesPage() {
         currency: formCurrency.trim() || undefined,
         interval: billingType === "recurring" ? interval : undefined,
         nextBillingDate: undefined,
+        subscriptionId: null,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
       };
@@ -422,7 +425,7 @@ export default function PortalServicesPage() {
       setFormNotes("");
       setFormRenewalDate("");
       setFormProjectId("");
-      setFormBillingType("one_time");
+      setFormBillingType("none");
       setFormPrice("");
       setFormCurrency("USD");
       setFormInterval("monthly");
@@ -621,6 +624,7 @@ export default function PortalServicesPage() {
                     onChange={(e) => setFormBillingType(e.target.value as BillingType)}
                     className="w-full px-3 py-2 rounded-lg border border-slate-200 text-[#0F172A]"
                   >
+                    <option value="none">Not billable</option>
                     <option value="one_time">One-time</option>
                     <option value="recurring">Recurring</option>
                   </select>
@@ -640,6 +644,7 @@ export default function PortalServicesPage() {
                     value={formPrice}
                     onChange={(e) => setFormPrice(e.target.value)}
                     required={formBillingType === "recurring"}
+                    disabled={formBillingType === "none"}
                     placeholder="0.00"
                     className="w-full px-3 py-2 rounded-lg border border-slate-200 text-[#0F172A] placeholder:text-slate-400"
                   />
@@ -654,6 +659,7 @@ export default function PortalServicesPage() {
                     value={formCurrency}
                     onChange={(e) => setFormCurrency(e.target.value.toUpperCase())}
                     required={formBillingType === "recurring"}
+                    disabled={formBillingType === "none"}
                     placeholder="USD"
                     className="w-full px-3 py-2 rounded-lg border border-slate-200 text-[#0F172A] placeholder:text-slate-400"
                   />
