@@ -30,6 +30,8 @@ type TicketDoc = {
   clientName?: string;
   projectId?: string;
   projectName?: string;
+  serviceId?: string;
+  serviceName?: string;
   createdAt?: { toDate?: () => Date };
   updatedAt?: { toDate?: () => Date };
 };
@@ -130,8 +132,9 @@ export default function ClientTicketDetailPage() {
   const headerSubtitle = useMemo(() => {
     const bits: string[] = [];
     if (ticket?.projectName) bits.push(`Project: ${ticket.projectName}`);
+    if (ticket?.serviceName) bits.push(`Service: ${ticket.serviceName}`);
     return bits.join(" · ");
-  }, [ticket?.projectName]);
+  }, [ticket?.projectName, ticket?.serviceName]);
 
   async function handleSendReply(e: React.FormEvent) {
     e.preventDefault();
@@ -214,6 +217,26 @@ export default function ClientTicketDetailPage() {
             <p className="text-sm text-[#0F172A] break-words whitespace-pre-wrap">
               {ticket.description}
             </p>
+          </div>
+        )}
+        {(ticket.serviceId || ticket.projectId) && (
+          <div className="mt-3 flex flex-wrap gap-2">
+            {ticket.serviceId ? (
+              <Link
+                href={`/client/services/${ticket.serviceId}`}
+                className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-indigo-50 text-indigo-700 border border-indigo-200 hover:bg-indigo-100"
+              >
+                Related service: {ticket.serviceName ?? ticket.serviceId}
+              </Link>
+            ) : null}
+            {ticket.projectId ? (
+              <Link
+                href="/client/projects"
+                className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-slate-50 text-slate-700 border border-slate-200 hover:bg-slate-100"
+              >
+                Linked project: {ticket.projectName ?? ticket.projectId}
+              </Link>
+            ) : null}
           </div>
         )}
       </section>

@@ -25,6 +25,8 @@ type TicketRow = {
   clientName?: string;
   projectId?: string;
   projectName?: string;
+  serviceId?: string;
+  serviceName?: string;
   priority?: TicketPriority;
   status?: TicketStatus;
   createdAt?: { toDate?: () => Date };
@@ -63,6 +65,7 @@ function statusBadge(s?: TicketStatus) {
 
 type ClientOption = { id: string; name?: string };
 type ProjectOption = { id: string; name?: string; clientId?: string; clientName?: string };
+type ServiceOption = { id: string; name?: string; clientId?: string; clientName?: string; projectId?: string; projectName?: string };
 
 export default function PortalSupportPage() {
   const { user, loading: authLoading } = useAuth();
@@ -86,11 +89,14 @@ export default function PortalSupportPage() {
   const [clientName, setClientName] = useState<string>("");
   const [projectId, setProjectId] = useState<string>("");
   const [projectName, setProjectName] = useState<string>("");
+  const [serviceId, setServiceId] = useState<string>("");
+  const [serviceName, setServiceName] = useState<string>("");
   const [creating, setCreating] = useState(false);
   const subjectRef = useRef<HTMLInputElement | null>(null);
 
   const [clients, setClients] = useState<ClientOption[]>([]);
   const [projects, setProjects] = useState<ProjectOption[]>([]);
+  const [services, setServices] = useState<ServiceOption[]>([]);
 
   useEffect(() => {
     const tenantId = tenant?.id;
@@ -142,6 +148,8 @@ export default function PortalSupportPage() {
     const qpClientName = searchParams?.get("clientName");
     const qpProjectId = searchParams?.get("projectId");
     const qpProjectName = searchParams?.get("projectName");
+    const qpServiceId = searchParams?.get("serviceId");
+    const qpServiceName = searchParams?.get("serviceName");
     const qpDescription = searchParams?.get("description");
 
     if (qpSubject) setSubject(qpSubject);
@@ -151,6 +159,8 @@ export default function PortalSupportPage() {
     if (qpClientName) setClientName(qpClientName);
     if (qpProjectId) setProjectId(qpProjectId);
     if (qpProjectName) setProjectName(qpProjectName);
+    if (qpServiceId) setServiceId(qpServiceId);
+    if (qpServiceName) setServiceName(qpServiceName);
 
     // Best-effort focus
     setTimeout(() => subjectRef.current?.focus(), 0);
@@ -163,9 +173,10 @@ export default function PortalSupportPage() {
 
     const tid = tenantId as string;
     async function loadOptions() {
-      const [clientsSnap, projectsSnap] = await Promise.all([
+      const [clientsSnap, projectsSnap, servicesSnap] = await Promise.all([
         getDocs(collection(db, "tenants", tid, "clients")),
         getDocs(collection(db, "tenants", tid, "projects")),
+        getDocs(collection(db, "tenants", tid, "services")),
       ]);
       setClients(
         clientsSnap.docs.map((d) => ({ id: d.id, name: (d.data() as { name?: string }).name }))
@@ -174,6 +185,25 @@ export default function PortalSupportPage() {
         projectsSnap.docs.map((d) => {
           const data = d.data() as { name?: string; clientId?: string; clientName?: string };
           return { id: d.id, name: data.name, clientId: data.clientId, clientName: data.clientName };
+        })
+      );
+      setServices(
+        servicesSnap.docs.map((d) => {
+          const data = d.data() as {
+            name?: string;
+            clientId?: string;
+            clientName?: string;
+            projectId?: string;
+            projectName?: string;
+          };
+          return {
+            id: d.id,
+            name: data.name,
+            clientId: data.clientId,
+            clientName: data.clientName,
+            projectId: data.projectId,
+            projectName: data.projectName,
+          };
         })
       );
     }
@@ -203,6 +233,8 @@ export default function PortalSupportPage() {
         clientId ? clients.find((c) => c.id === clientId) : undefined;
       const resolvedProject =
         projectId ? projects.find((p) => p.id === projectId) : undefined;
+      const resolvedService =
+        serviceId ? services.find((s) => s.id === serviceId) : undefined;
       const finalClientName = clientName || resolvedClient?.name || resolvedProject?.clientName;
       const finalProjectName = projectName || resolvedProject?.name;
 
@@ -218,10 +250,13 @@ export default function PortalSupportPage() {
       };
 
       const finalClientId = clientId || resolvedProject?.clientId || "";
+      const finalServiceName = serviceName || resolvedService?.name;
       if (finalClientId) payload.clientId = finalClientId;
       if (finalClientName) payload.clientName = finalClientName;
       if (projectId) payload.projectId = projectId;
       if (finalProjectName) payload.projectName = finalProjectName;
+      if (serviceId) payload.serviceId = serviceId;
+      if (finalServiceName) payload.serviceName = finalServiceName;
 
       const created = await addDoc(collection(db, "tenants", tid, "tickets"), payload);
 
@@ -232,6 +267,8 @@ export default function PortalSupportPage() {
       setClientName("");
       setProjectId("");
       setProjectName("");
+      setServiceId("");
+      setServiceName("");
       setShowForm(false);
       router.replace(pathname);
 
@@ -350,6 +387,31 @@ export default function PortalSupportPage() {
           </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
             <div className="md:col-span-2">
+              <label className="text-xs font-medium text-slate-600">Related service (optional)</label>
+              <select
+                value={serviceId}
+                onChange={(e) => {
+                  setServiceId(e.target.value);
+                  const s = services.find((x) => x.id === e.target.value);
+                  setServiceName(s?.name ?? "");
+                  if (s?.clientId) setClientId(s.clientId);
+                  if (s?.clientName) setClientName(s.clientName);
+                  if (s?.projectId) setProjectId(s.projectId);
+                  if (s?.projectName) setProjectName(s.projectName);
+                }}
+                className="mt-1 w-full min-w-0 px-3 py-2 rounded-lg border border-slate-200 text-[#0F172A] bg-white"
+              >
+                <option value="">Select service</option>
+                {services.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {(s.name ?? s.id) + (s.clientName ? ` — ${s.clientName}` : "")}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <div className="md:col-span-2">
               <label className="text-xs font-medium text-slate-600">Subject</label>
               <input
                 ref={subjectRef}
@@ -453,11 +515,13 @@ export default function PortalSupportPage() {
                       >
                         {t.subject ?? "Untitled ticket"}
                       </Link>
-                      {t.projectName && (
+                      {t.projectName || t.serviceName ? (
                         <p className="text-xs text-slate-500 mt-1 truncate">
-                          Project: {t.projectName}
+                          {t.projectName ? `Project: ${t.projectName}` : ""}
+                          {t.projectName && t.serviceName ? " · " : ""}
+                          {t.serviceName ? `Service: ${t.serviceName}` : ""}
                         </p>
-                      )}
+                      ) : null}
                     </td>
                     <td className="py-3 px-4 text-[#0F172A]">{t.clientName ?? "—"}</td>
                     <td className="py-3 px-4">{priorityBadge(t.priority)}</td>

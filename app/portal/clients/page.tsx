@@ -10,6 +10,7 @@ export default function ClientsPage() {
   const { user } = useAuth();
   const { tenant } = useTenant();
   const [clients, setClients] = useState<{ id: string; name?: string; email?: string; status?: string }[]>([]);
+  const [servicesByClient, setServicesByClient] = useState<Record<string, Array<{ id: string; name?: string; category?: string }>>>({});
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [name, setName] = useState("");
@@ -26,15 +27,31 @@ export default function ClientsPage() {
     async function loadClients() {
       setLoading(true);
       try {
-        const snap = await getDocs(collection(db, "tenants", tenantId as string, "clients"));
+        const [clientsSnap, servicesSnap] = await Promise.all([
+          getDocs(collection(db, "tenants", tenantId as string, "clients")),
+          getDocs(collection(db, "tenants", tenantId as string, "services")),
+        ]);
         setClients(
-          snap.docs.map((d) => ({
+          clientsSnap.docs.map((d) => ({
             id: d.id,
             name: d.data().name,
             email: d.data().email,
             status: d.data().status,
           }))
         );
+        const grouped: Record<string, Array<{ id: string; name?: string; category?: string }>> = {};
+        for (const d of servicesSnap.docs) {
+          const data = d.data() as { clientId?: string; name?: string; categoryLabel?: string; category?: string };
+          const cid = data.clientId ?? "";
+          if (!cid) continue;
+          if (!grouped[cid]) grouped[cid] = [];
+          grouped[cid].push({
+            id: d.id,
+            name: data.name,
+            category: data.categoryLabel ?? data.category,
+          });
+        }
+        setServicesByClient(grouped);
       } finally {
         setLoading(false);
       }
@@ -62,15 +79,31 @@ export default function ClientsPage() {
       setEmail("");
       setShowForm(false);
 
-      const snap = await getDocs(collection(db, "tenants", tenantId as string, "clients"));
+      const [clientsSnap, servicesSnap] = await Promise.all([
+        getDocs(collection(db, "tenants", tenantId as string, "clients")),
+        getDocs(collection(db, "tenants", tenantId as string, "services")),
+      ]);
       setClients(
-        snap.docs.map((d) => ({
+        clientsSnap.docs.map((d) => ({
           id: d.id,
           name: d.data().name,
           email: d.data().email,
           status: d.data().status,
         }))
       );
+      const grouped: Record<string, Array<{ id: string; name?: string; category?: string }>> = {};
+      for (const d of servicesSnap.docs) {
+        const data = d.data() as { clientId?: string; name?: string; categoryLabel?: string; category?: string };
+        const cid = data.clientId ?? "";
+        if (!cid) continue;
+        if (!grouped[cid]) grouped[cid] = [];
+        grouped[cid].push({
+          id: d.id,
+          name: data.name,
+          category: data.categoryLabel ?? data.category,
+        });
+      }
+      setServicesByClient(grouped);
     } finally {
       setSubmitting(false);
     }
@@ -124,11 +157,12 @@ export default function ClientsPage() {
 
       <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden max-w-full">
         <div className="w-full overflow-x-auto">
-          <table className="min-w-[800px] w-full border-collapse">
+          <table className="min-w-[980px] w-full border-collapse">
           <thead>
             <tr className="border-b border-slate-200 bg-slate-50">
               <th className="text-left py-3 px-4 text-sm font-medium text-[#0F172A]">Name</th>
               <th className="text-left py-3 px-4 text-sm font-medium text-[#0F172A]">Email</th>
+              <th className="text-left py-3 px-4 text-sm font-medium text-[#0F172A]">Services</th>
               <th className="text-left py-3 px-4 text-sm font-medium text-[#0F172A]">Status</th>
             </tr>
           </thead>
@@ -137,6 +171,33 @@ export default function ClientsPage() {
               <tr key={client.id} className="border-b border-slate-100 last:border-0">
                 <td className="py-3 px-4 text-[#0F172A]">{client.name ?? "—"}</td>
                 <td className="py-3 px-4 text-[#0F172A]">{client.email ?? "—"}</td>
+                <td className="py-3 px-4 text-[#0F172A]">
+                  {servicesByClient[client.id]?.length ? (
+                    <div className="space-y-1">
+                      <p className="text-xs text-slate-500">
+                        {servicesByClient[client.id].length} service
+                        {servicesByClient[client.id].length === 1 ? "" : "s"}
+                      </p>
+                      <div className="flex flex-wrap gap-1">
+                        {servicesByClient[client.id].slice(0, 3).map((s) => (
+                          <span
+                            key={s.id}
+                            className="inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-slate-100 text-slate-700"
+                          >
+                            {s.name ?? s.category ?? s.id}
+                          </span>
+                        ))}
+                        {servicesByClient[client.id].length > 3 ? (
+                          <span className="text-xs text-slate-500">
+                            +{servicesByClient[client.id].length - 3} more
+                          </span>
+                        ) : null}
+                      </div>
+                    </div>
+                  ) : (
+                    <span className="text-slate-500 text-sm">No services</span>
+                  )}
+                </td>
                 <td className="py-3 px-4 text-[#0F172A]">{client.status ?? "—"}</td>
               </tr>
             ))}

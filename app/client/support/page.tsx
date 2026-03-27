@@ -24,10 +24,21 @@ type TicketStatus = "open" | "in_progress" | "waiting_client" | "resolved" | "cl
 type TicketRow = {
   id: string;
   subject?: string;
+  serviceId?: string;
+  serviceName?: string;
+  projectId?: string;
+  projectName?: string;
   priority?: TicketPriority;
   status?: TicketStatus;
   createdAt?: { toDate?: () => Date };
   updatedAt?: { toDate?: () => Date };
+};
+
+type ServiceOption = {
+  id: string;
+  name?: string;
+  projectId?: string;
+  projectName?: string;
 };
 
 function formatDate(ts: { toDate?: () => Date } | undefined): string {
@@ -77,6 +88,9 @@ export default function ClientSupportPage() {
   const [priority, setPriority] = useState<TicketPriority>("medium");
   const [projectId, setProjectId] = useState<string>("");
   const [projectName, setProjectName] = useState<string>("");
+  const [serviceId, setServiceId] = useState<string>("");
+  const [serviceName, setServiceName] = useState<string>("");
+  const [services, setServices] = useState<ServiceOption[]>([]);
   const [creating, setCreating] = useState(false);
   const subjectRef = useRef<HTMLInputElement | null>(null);
 
@@ -139,13 +153,52 @@ export default function ClientSupportPage() {
     const qpPriority = searchParams?.get("priority") as TicketPriority | null;
     const qpProjectId = searchParams?.get("projectId");
     const qpProjectName = searchParams?.get("projectName");
+    const qpServiceId = searchParams?.get("serviceId");
+    const qpServiceName = searchParams?.get("serviceName");
     if (qpSubject) setSubject(qpSubject);
     if (qpDescription) setDescription(qpDescription);
     if (qpPriority && ["low", "medium", "high", "urgent"].includes(qpPriority)) setPriority(qpPriority);
     if (qpProjectId) setProjectId(qpProjectId);
     if (qpProjectName) setProjectName(qpProjectName);
+    if (qpServiceId) setServiceId(qpServiceId);
+    if (qpServiceName) setServiceName(qpServiceName);
     setTimeout(() => subjectRef.current?.focus(), 0);
   }, [searchParams, tenant?.id]);
+
+  useEffect(() => {
+    const tenantId = tenant?.id;
+    if (!showForm || !tenantId || !clientId) return;
+    const tid = tenantId as string;
+    async function loadServices() {
+      const snap = await getDocs(collection(db, "tenants", tid, "services"));
+      setServices(
+        snap.docs
+          .map((d) => {
+            const data = d.data() as {
+              clientId?: string;
+              name?: string;
+              projectId?: string;
+              projectName?: string;
+            };
+            return {
+              id: d.id,
+              clientId: data.clientId,
+              name: data.name,
+              projectId: data.projectId,
+              projectName: data.projectName,
+            } as ServiceOption & { clientId?: string };
+          })
+          .filter((s) => (s as ServiceOption & { clientId?: string }).clientId === clientId)
+          .map((s) => ({
+            id: s.id,
+            name: s.name,
+            projectId: s.projectId,
+            projectName: s.projectName,
+          }))
+      );
+    }
+    loadServices();
+  }, [showForm, tenant?.id, clientId]);
 
   const hasTickets = useMemo(() => tickets.length > 0, [tickets.length]);
 
@@ -187,6 +240,8 @@ export default function ClientSupportPage() {
       if (clientName) payload.clientName = clientName;
       if (projectId) payload.projectId = projectId;
       if (projectName) payload.projectName = projectName;
+      if (serviceId) payload.serviceId = serviceId;
+      if (serviceName) payload.serviceName = serviceName;
 
       const created = await addDoc(collection(db, "tenants", tid, "tickets"), payload);
 
@@ -195,6 +250,8 @@ export default function ClientSupportPage() {
       setPriority("medium");
       setProjectId("");
       setProjectName("");
+      setServiceId("");
+      setServiceName("");
       setShowForm(false);
       router.replace(pathname);
       router.push(`/client/support/${created.id}`);
@@ -274,10 +331,37 @@ export default function ClientSupportPage() {
               </select>
             </div>
           </div>
+          <div>
+            <label className="text-xs font-medium text-slate-600">Related service (optional)</label>
+            <select
+              value={serviceId}
+              onChange={(e) => {
+                setServiceId(e.target.value);
+                const s = services.find((x) => x.id === e.target.value);
+                setServiceName(s?.name ?? "");
+                if (s?.projectId) setProjectId(s.projectId);
+                if (s?.projectName) setProjectName(s.projectName);
+              }}
+              className="mt-1 w-full min-w-0 px-3 py-2 rounded-lg border border-slate-200 text-[#0F172A] bg-white"
+            >
+              <option value="">Select service</option>
+              {services.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.name ?? s.id}
+                </option>
+              ))}
+            </select>
+          </div>
           {(projectId || projectName) && (
             <div className="text-xs text-slate-600">
               <span className="text-slate-500">Linked project:</span>{" "}
               <span className="font-medium">{projectName || projectId}</span>
+            </div>
+          )}
+          {(serviceId || serviceName) && (
+            <div className="text-xs text-slate-600">
+              <span className="text-slate-500">Related service:</span>{" "}
+              <span className="font-medium">{serviceName || serviceId}</span>
             </div>
           )}
           <div>
@@ -355,6 +439,13 @@ export default function ClientSupportPage() {
                       >
                         {t.subject ?? "Untitled ticket"}
                       </Link>
+                      {t.projectName || t.serviceName ? (
+                        <p className="text-xs text-slate-500 mt-1 truncate">
+                          {t.projectName ? `Project: ${t.projectName}` : ""}
+                          {t.projectName && t.serviceName ? " · " : ""}
+                          {t.serviceName ? `Service: ${t.serviceName}` : ""}
+                        </p>
+                      ) : null}
                     </td>
                     <td className="py-3 px-4">{priorityBadge(t.priority)}</td>
                     <td className="py-3 px-4">{statusBadge(t.status)}</td>
