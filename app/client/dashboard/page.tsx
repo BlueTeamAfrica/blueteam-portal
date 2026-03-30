@@ -2,10 +2,26 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { collection, getDocs, query, where, doc, getDoc, orderBy, limit } from "firebase/firestore";
+import {
+  collection,
+  getDocs,
+  query,
+  where,
+  doc,
+  getDoc,
+  orderBy,
+  limit,
+  Timestamp,
+} from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useAuth } from "@/lib/authContext";
 import { useTenant } from "@/lib/tenantContext";
+import {
+  bucketServiceHealthForCounts,
+  getServiceHealthLabel,
+  isAttentionServiceHealth,
+  normalizeServiceHealth,
+} from "@/lib/serviceHealth";
 
 type RecentActivityItem = {
   id: string;
@@ -24,6 +40,57 @@ function getBillingTypeLabel(v?: string) {
   return v ? v : "—";
 }
 
+type ClientHealthOverview = {
+  counts: {
+    healthy: number;
+    warning: number;
+    critical: number;
+    waiting_client: number;
+    paused: number;
+  };
+  attention: Array<{
+    id: string;
+    name: string;
+    clientName: string;
+    health: string;
+    nextAction?: string;
+    nextActionDueLabel: string;
+  }>;
+};
+
+function formatServiceDue(ts?: Timestamp | null) {
+  if (!ts) return "—";
+  try {
+    if (typeof ts.toDate === "function") {
+      return ts.toDate().toLocaleDateString(undefined, { dateStyle: "medium" });
+    }
+  } catch {
+    /* ignore */
+  }
+  return "—";
+}
+
+function HealthOverviewBadge({ health }: { health?: string }) {
+  const h = normalizeServiceHealth(health);
+  const styles =
+    h === "healthy"
+      ? "bg-emerald-100 text-emerald-800"
+      : h === "warning"
+        ? "bg-amber-100 text-amber-800"
+        : h === "critical"
+          ? "bg-rose-100 text-rose-800"
+          : h === "waiting_client"
+            ? "bg-indigo-100 text-indigo-800"
+            : h === "paused"
+              ? "bg-slate-200 text-slate-700"
+              : "bg-slate-100 text-slate-600";
+  return (
+    <span className={`inline-flex px-2 py-0.5 rounded-full text-[11px] font-semibold ${styles}`}>
+      {getServiceHealthLabel(health)}
+    </span>
+  );
+}
+
 export default function ClientDashboardPage() {
   const { user } = useAuth();
   const { tenant, role, clientId } = useTenant();
@@ -32,6 +99,7 @@ export default function ClientDashboardPage() {
   const [unpaidInvoices, setUnpaidInvoices] = useState<number>(0);
   const [totalInvoices, setTotalInvoices] = useState<number>(0);
   const [recentActivity, setRecentActivity] = useState<RecentActivityItem[]>([]);
+  const [serviceHealthOverview, setServiceHealthOverview] = useState<ClientHealthOverview | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -48,7 +116,8 @@ export default function ClientDashboardPage() {
       setLoading(true);
       try {
         const clientDoc = await getDoc(doc(db, "tenants", tenantId as string, "clients", clientIdStr as string));
-        setClientName((clientDoc.data()?.name as string) ?? "Client");
+        const resolvedClientName = (clientDoc.data()?.name as string) ?? "Client";
+        setClientName(resolvedClientName);
 
         const projectsQuery = query(
           collection(db, "tenants", tenantId as string, "projects"),
@@ -73,6 +142,66 @@ export default function ClientDashboardPage() {
         ]);
         setTotalInvoices(allSnap.size);
         setUnpaidInvoices(unpaidSnap.size);
+
+        const allServicesForHealth = await getDocs(
+          query(
+            collection(db, "tenants", tenantId as string, "services"),
+            where("clientId", "==", clientIdStr)
+          )
+        );
+        const counts = {
+          healthy: 0,
+          warning: 0,
+          critical: 0,
+          waiting_client: 0,
+          paused: 0,
+        };
+        type AttentionSort = ClientHealthOverview["attention"][number] & { _due: number };
+        const attentionSort: AttentionSort[] = [];
+
+        allServicesForHealth.forEach((d) => {
+          const data = d.data() as {
+            name?: string;
+            clientName?: string;
+            health?: string;
+            nextAction?: string;
+            nextActionDue?: Timestamp | null;
+          };
+          const bucket = bucketServiceHealthForCounts(data.health);
+          counts[bucket] += 1;
+
+          if (isAttentionServiceHealth(data.health)) {
+            let dueMs = Infinity;
+            const due = data.nextActionDue;
+            if (due && typeof due.toDate === "function") {
+              try {
+                dueMs = due.toDate().getTime();
+              } catch {
+                dueMs = Infinity;
+              }
+            }
+            attentionSort.push({
+              id: d.id,
+              name: data.name?.trim() ? data.name.trim() : "Untitled service",
+              clientName: data.clientName?.trim() ? data.clientName.trim() : resolvedClientName,
+              health: data.health ?? "",
+              nextAction: data.nextAction?.trim() ? data.nextAction.trim() : undefined,
+              nextActionDueLabel: formatServiceDue(data.nextActionDue ?? null),
+              _due: dueMs,
+            });
+          }
+        });
+
+        attentionSort.sort((a, b) => {
+          if (a._due !== b._due) return a._due - b._due;
+          return a.name.localeCompare(b.name);
+        });
+        const attention: ClientHealthOverview["attention"] = [];
+        for (const row of attentionSort.slice(0, 8)) {
+          const { _due: _drop, ...rest } = row;
+          attention.push(rest);
+        }
+        setServiceHealthOverview({ counts, attention });
 
         const [recentInvoicesSnap, recentServicesSnap] = await Promise.all([
           getDocs(
@@ -217,6 +346,109 @@ export default function ClientDashboardPage() {
           <div className="text-2xl font-semibold text-[#0F172A] mt-1">{totalInvoices}</div>
         </div>
       </div>
+
+      {serviceHealthOverview && (
+        <div className="mt-6 rounded-2xl border border-slate-200/80 bg-gradient-to-br from-slate-50 via-white to-indigo-50/40 shadow-sm overflow-hidden max-w-full">
+          <div className="px-4 py-3 sm:px-6 sm:py-4 border-b border-slate-200/80 bg-slate-900/[0.04] flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+            <div>
+              <h2 className="text-[#0F172A] text-lg font-semibold tracking-tight">Service Health Overview</h2>
+              <p className="text-xs text-slate-600 mt-0.5 max-w-xl">
+                Your managed services at a glance. Unset status counts as{" "}
+                <span className="font-medium text-slate-700">Healthy</span>.
+              </p>
+            </div>
+            <Link
+              href="/client/services"
+              className="inline-flex items-center justify-center rounded-lg bg-indigo-600 px-3 py-2 text-sm font-medium text-white shadow-sm hover:bg-indigo-500 transition-colors shrink-0"
+            >
+              View services
+            </Link>
+          </div>
+          <div className="p-4 sm:p-6 space-y-5">
+            <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 sm:gap-3">
+              {(
+                [
+                  ["healthy", "Healthy", "emerald"],
+                  ["warning", "Warning", "amber"],
+                  ["critical", "Critical", "rose"],
+                  ["waiting_client", "Waiting on Client", "indigo"],
+                  ["paused", "Paused", "slate"],
+                ] as const
+              ).map(([key, label, tone]) => {
+                const n = serviceHealthOverview.counts[key];
+                const ring =
+                  tone === "emerald"
+                    ? "ring-emerald-200/80 bg-emerald-50/90"
+                    : tone === "amber"
+                      ? "ring-amber-200/80 bg-amber-50/90"
+                      : tone === "rose"
+                        ? "ring-rose-200/80 bg-rose-50/90"
+                        : tone === "indigo"
+                          ? "ring-indigo-200/80 bg-indigo-50/90"
+                          : "ring-slate-200/80 bg-slate-50/90";
+                return (
+                  <div
+                    key={key}
+                    className={`rounded-xl border border-white/60 px-3 py-3 sm:py-4 shadow-sm ring-1 ${ring} min-w-0`}
+                  >
+                    <p className="text-[10px] sm:text-xs font-semibold uppercase tracking-wide text-slate-600 truncate">
+                      {label}
+                    </p>
+                    <p className="mt-1 text-2xl sm:text-3xl font-bold tabular-nums text-[#0F172A]">{n}</p>
+                  </div>
+                );
+              })}
+            </div>
+
+            <div className="rounded-xl border border-slate-200 bg-white/80 backdrop-blur-sm p-4 sm:p-5">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-3">
+                <h3 className="text-sm font-semibold text-[#0F172A]">Needs attention</h3>
+                <p className="text-xs text-slate-500">Warning, Critical, or Waiting on Client</p>
+              </div>
+              {serviceHealthOverview.attention.length === 0 ? (
+                <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50/80 px-4 py-6 text-center">
+                  <p className="text-sm font-medium text-slate-700">You&apos;re in good shape</p>
+                  <p className="text-xs text-slate-500 mt-1">
+                    No services need immediate attention from your side.
+                  </p>
+                </div>
+              ) : (
+                <ul className="divide-y divide-slate-100">
+                  {serviceHealthOverview.attention.map((row) => (
+                    <li key={row.id} className="py-3 first:pt-0 last:pb-0">
+                      <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                        <div className="min-w-0 flex-1">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <Link
+                              href={`/client/services/${row.id}`}
+                              className="text-sm font-semibold text-indigo-700 hover:text-indigo-600 hover:underline break-words"
+                            >
+                              {row.name}
+                            </Link>
+                            <HealthOverviewBadge health={row.health} />
+                          </div>
+                          <p className="text-xs text-slate-500 mt-1">
+                            Client: <span className="text-slate-700 font-medium">{row.clientName}</span>
+                          </p>
+                        </div>
+                        <div className="text-left sm:text-right shrink-0 min-w-0">
+                          <p className="text-xs text-slate-500">Next action</p>
+                          <p className="text-sm text-[#0F172A] font-medium break-words">
+                            {row.nextAction ?? "—"}
+                          </p>
+                          <p className="text-[11px] text-slate-500 mt-0.5">
+                            Due: <span className="text-slate-700">{row.nextActionDueLabel}</span>
+                          </p>
+                        </div>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="mt-6 flex flex-wrap gap-3">
         <Link
