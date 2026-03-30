@@ -634,17 +634,22 @@ export default function PortalServiceDetailPage() {
 
           <div className="mt-6">
             <h3 className="text-[#0F172A] font-semibold">Health</h3>
-            <div className="mt-3 bg-slate-50 rounded-xl p-4 border border-slate-100">
+            <p className="mt-1 text-xs text-slate-500 max-w-2xl">
+              Operational status for this service. Updates here are visible to your team; clients see a read-only summary on their portal.
+            </p>
+            <div className="mt-3 bg-slate-50 rounded-xl p-4 sm:p-5 border border-slate-100 max-w-full overflow-hidden">
               <div className="flex flex-wrap items-center gap-2">
+                <span className="text-xs font-medium text-slate-500 uppercase tracking-wide">Status</span>
                 <HealthBadge health={service.health} />
-                {service.healthNote ? (
-                  <span className="inline-flex px-2.5 py-0.5 rounded-full text-xs font-medium bg-white text-slate-700">
-                    {service.healthNote}
-                  </span>
-                ) : null}
               </div>
 
-              <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="sm:col-span-2">
+                  <p className="text-xs text-slate-500">Health note</p>
+                  <p className="mt-1 text-sm text-[#0F172A] whitespace-pre-wrap break-words">
+                    {service.healthNote?.trim() ? service.healthNote : "—"}
+                  </p>
+                </div>
                 <div>
                   <p className="text-xs text-slate-500">Last checked</p>
                   <p className="text-sm text-[#0F172A] font-medium break-words">
@@ -662,7 +667,7 @@ export default function PortalServiceDetailPage() {
                 </div>
               </div>
 
-              <div className="mt-3">
+              <div className="mt-3 pt-3 border-t border-slate-200/80">
                 <p className="text-xs text-slate-500">Operational summary</p>
                 <p className="mt-1 text-sm text-slate-700 whitespace-pre-wrap break-words">
                   {service.operationalSummary ?? "—"}
@@ -697,6 +702,9 @@ export default function PortalServiceDetailPage() {
 
                     <div className="sm:col-span-2">
                       <label className="block text-xs font-medium text-slate-600">Health note (optional)</label>
+                      <p className="mt-0.5 text-[11px] text-slate-500">
+                        Short context for your team (and optionally shown to clients). Saving sets <span className="font-medium">Last checked</span> to now.
+                      </p>
                       <textarea
                         value={healthNote}
                         onChange={(e) => setHealthNote(e.target.value)}

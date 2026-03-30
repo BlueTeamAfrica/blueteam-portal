@@ -356,40 +356,48 @@ export default function ClientServiceDetailPage() {
         </p>
       </div>
 
-      <div className="mt-4 bg-white rounded-2xl shadow-sm border border-slate-200 p-5 md:p-6 max-w-full">
-        <h2 className="text-[#0F172A] font-semibold">Health</h2>
+      <div className="mt-4 bg-white rounded-2xl shadow-sm border border-slate-200 p-5 md:p-6 max-w-full overflow-hidden">
+        <h2 className="text-[#0F172A] font-semibold">Service health</h2>
+        <p className="mt-1 text-xs text-slate-500 max-w-2xl">
+          This is how Blueteam currently sees this service: status, what we are doing next, and any important notes. Contact us if something does not match what you expect.
+        </p>
 
-        <div className="mt-3 flex flex-wrap items-center gap-2">
-          <HealthBadge health={service.health} />
-          {service.healthNote ? (
-            <span className="inline-flex px-2.5 py-0.5 rounded-full text-xs font-medium bg-white text-slate-700">
-              {service.healthNote}
-            </span>
-          ) : null}
-        </div>
+        <div className="mt-4 bg-slate-50 rounded-xl p-4 sm:p-5 border border-slate-100">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-xs font-medium text-slate-500 uppercase tracking-wide">Status</span>
+            <HealthBadge health={service.health} />
+          </div>
 
-        <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div className="bg-slate-50 rounded-xl p-4 border border-slate-100">
-            <p className="text-xs text-slate-500">Last checked</p>
-            <p className="mt-1 text-sm text-[#0F172A] font-medium break-words">
-              {formatDateTime(service.lastCheckedAt ?? service.updatedAt ?? service.createdAt)}
+          <div className="mt-4">
+            <p className="text-xs text-slate-500">Note from Blueteam</p>
+            <p className="mt-1 text-sm text-[#0F172A] whitespace-pre-wrap break-words">
+              {service.healthNote?.trim() ? service.healthNote : "—"}
             </p>
           </div>
 
-          <div className="bg-slate-50 rounded-xl p-4 border border-slate-100">
-            <p className="text-xs text-slate-500">Next action</p>
-            <p className="mt-1 text-sm text-[#0F172A] font-medium break-words">{service.nextAction ?? "—"}</p>
-            <p className="text-xs text-slate-500 mt-2">
-              Due: {formatDate(service.nextActionDue ?? null)}
+          <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="bg-white/80 rounded-xl p-4 border border-slate-100/80">
+              <p className="text-xs text-slate-500">Last checked</p>
+              <p className="mt-1 text-sm text-[#0F172A] font-medium break-words">
+                {formatDateTime(service.lastCheckedAt ?? service.updatedAt ?? service.createdAt)}
+              </p>
+            </div>
+
+            <div className="bg-white/80 rounded-xl p-4 border border-slate-100/80">
+              <p className="text-xs text-slate-500">Next action</p>
+              <p className="mt-1 text-sm text-[#0F172A] font-medium break-words">{service.nextAction ?? "—"}</p>
+              <p className="text-xs text-slate-500 mt-2">
+                Due: {formatDate(service.nextActionDue ?? null)}
+              </p>
+            </div>
+          </div>
+
+          <div className="mt-4 pt-4 border-t border-slate-200/80">
+            <p className="text-xs text-slate-500">Operational summary</p>
+            <p className="mt-2 text-sm text-slate-700 whitespace-pre-wrap break-words">
+              {service.operationalSummary ?? "—"}
             </p>
           </div>
-        </div>
-
-        <div className="mt-4 bg-slate-50 rounded-xl p-4 border border-slate-100">
-          <p className="text-xs text-slate-500">Operational summary</p>
-          <p className="mt-2 text-sm text-slate-700 whitespace-pre-wrap break-words">
-            {service.operationalSummary ?? "—"}
-          </p>
         </div>
       </div>
     </div>
