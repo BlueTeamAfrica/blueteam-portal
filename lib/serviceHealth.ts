@@ -54,3 +54,18 @@ export function isAttentionServiceHealth(health?: string): boolean {
   const h = normalizeServiceHealth(health);
   return h === "warning" || h === "critical" || h === "waiting_client";
 }
+
+/**
+ * Sort priority for dashboard previews (higher = show first).
+ * Order: critical → warning → waiting_client → healthy → paused.
+ * Unset / unknown values align with healthy.
+ */
+export function healthPreviewPriority(health?: string): number {
+  const h = normalizeServiceHealth(health);
+  if (h === "critical") return 4;
+  if (h === "warning") return 3;
+  if (h === "waiting_client") return 2;
+  if (h === "healthy") return 1;
+  if (h === "paused") return 0;
+  return 1;
+}

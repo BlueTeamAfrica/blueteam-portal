@@ -19,6 +19,7 @@ import { useTenant } from "@/lib/tenantContext";
 import {
   bucketServiceHealthForCounts,
   getServiceHealthLabel,
+  healthPreviewPriority,
   isAttentionServiceHealth,
   normalizeServiceHealth,
 } from "@/lib/serviceHealth";
@@ -40,6 +41,16 @@ function getBillingTypeLabel(v?: string) {
   return v ? v : "—";
 }
 
+type ClientPreviewRow = {
+  id: string;
+  name: string;
+  clientName: string;
+  health: string;
+  healthNote?: string;
+  nextAction?: string;
+  nextActionDueLabel: string;
+};
+
 type ClientHealthOverview = {
   counts: {
     healthy: number;
@@ -48,14 +59,9 @@ type ClientHealthOverview = {
     waiting_client: number;
     paused: number;
   };
-  attention: Array<{
-    id: string;
-    name: string;
-    clientName: string;
-    health: string;
-    nextAction?: string;
-    nextActionDueLabel: string;
-  }>;
+  preview: ClientPreviewRow[];
+  hasAnyAttention: boolean;
+  totalServices: number;
 };
 
 function formatServiceDue(ts?: Timestamp | null) {
@@ -156,52 +162,61 @@ export default function ClientDashboardPage() {
           waiting_client: 0,
           paused: 0,
         };
-        type AttentionSort = ClientHealthOverview["attention"][number] & { _due: number };
-        const attentionSort: AttentionSort[] = [];
+        type RowSort = ClientPreviewRow & { _due: number; _prio: number };
+        const sortRows: RowSort[] = [];
 
         allServicesForHealth.forEach((d) => {
           const data = d.data() as {
             name?: string;
             clientName?: string;
             health?: string;
+            healthNote?: string;
             nextAction?: string;
             nextActionDue?: Timestamp | null;
           };
           const bucket = bucketServiceHealthForCounts(data.health);
           counts[bucket] += 1;
 
-          if (isAttentionServiceHealth(data.health)) {
-            let dueMs = Infinity;
-            const due = data.nextActionDue;
-            if (due && typeof due.toDate === "function") {
-              try {
-                dueMs = due.toDate().getTime();
-              } catch {
-                dueMs = Infinity;
-              }
+          let dueMs = Infinity;
+          const due = data.nextActionDue;
+          if (due && typeof due.toDate === "function") {
+            try {
+              dueMs = due.toDate().getTime();
+            } catch {
+              dueMs = Infinity;
             }
-            attentionSort.push({
-              id: d.id,
-              name: data.name?.trim() ? data.name.trim() : "Untitled service",
-              clientName: data.clientName?.trim() ? data.clientName.trim() : resolvedClientName,
-              health: data.health ?? "",
-              nextAction: data.nextAction?.trim() ? data.nextAction.trim() : undefined,
-              nextActionDueLabel: formatServiceDue(data.nextActionDue ?? null),
-              _due: dueMs,
-            });
           }
+
+          sortRows.push({
+            id: d.id,
+            name: data.name?.trim() ? data.name.trim() : "Untitled service",
+            clientName: data.clientName?.trim() ? data.clientName.trim() : resolvedClientName,
+            health: data.health ?? "",
+            healthNote: data.healthNote?.trim() ? data.healthNote.trim() : undefined,
+            nextAction: data.nextAction?.trim() ? data.nextAction.trim() : undefined,
+            nextActionDueLabel: formatServiceDue(data.nextActionDue ?? null),
+            _due: dueMs,
+            _prio: healthPreviewPriority(data.health),
+          });
         });
 
-        attentionSort.sort((a, b) => {
+        const hasAnyAttention = sortRows.some((r) => isAttentionServiceHealth(r.health));
+
+        sortRows.sort((a, b) => {
+          if (b._prio !== a._prio) return b._prio - a._prio;
           if (a._due !== b._due) return a._due - b._due;
           return a.name.localeCompare(b.name);
         });
-        const attention: ClientHealthOverview["attention"] = [];
-        for (const row of attentionSort.slice(0, 8)) {
-          const { _due: _drop, ...rest } = row;
-          attention.push(rest);
-        }
-        setServiceHealthOverview({ counts, attention });
+
+        const previewLimit = hasAnyAttention ? 5 : 3;
+        const preview: ClientPreviewRow[] = sortRows.slice(0, previewLimit).map(({ _due, _prio, ...rest }) => rest);
+
+        setServiceHealthOverview({
+          counts,
+          preview,
+          hasAnyAttention,
+          totalServices: sortRows.length,
+        });
 
         const [recentInvoicesSnap, recentServicesSnap] = await Promise.all([
           getDocs(
@@ -400,24 +415,37 @@ export default function ClientDashboardPage() {
               })}
             </div>
 
-            <div className="rounded-xl border border-slate-200 bg-white/80 backdrop-blur-sm p-4 sm:p-5">
-              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-3">
-                <h3 className="text-sm font-semibold text-[#0F172A]">Needs attention</h3>
-                <p className="text-xs text-slate-500">Warning, Critical, or Waiting on Client</p>
-              </div>
-              {serviceHealthOverview.attention.length === 0 ? (
-                <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50/80 px-4 py-6 text-center">
-                  <p className="text-sm font-medium text-slate-700">You&apos;re in good shape</p>
-                  <p className="text-xs text-slate-500 mt-1">
-                    No services need immediate attention from your side.
+            <div className="rounded-xl border border-slate-200 bg-white/90 backdrop-blur-sm p-4 sm:p-5 shadow-sm">
+              <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 mb-3">
+                <div>
+                  <h3 className="text-sm font-semibold text-[#0F172A]">Service preview</h3>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    {serviceHealthOverview.hasAnyAttention
+                      ? "We prioritize what needs follow-up first (up to 5 services)."
+                      : "Here are a few of your services — all clear on urgent items (up to 3)."}
                   </p>
                 </div>
+                <Link
+                  href="/client/services"
+                  className="text-xs font-medium text-indigo-600 hover:text-indigo-500 hover:underline shrink-0"
+                >
+                  All your services →
+                </Link>
+              </div>
+
+              {serviceHealthOverview.totalServices === 0 ? (
+                <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50/90 px-4 py-5 text-center">
+                  <p className="text-sm font-medium text-slate-700">No services linked yet</p>
+                  <p className="text-xs text-slate-500 mt-1">When Blueteam adds services, they will appear here.</p>
+                </div>
+              ) : serviceHealthOverview.preview.length === 0 ? (
+                <p className="text-sm text-slate-500">No preview rows to show.</p>
               ) : (
-                <ul className="divide-y divide-slate-100">
-                  {serviceHealthOverview.attention.map((row) => (
-                    <li key={row.id} className="py-3 first:pt-0 last:pb-0">
+                <ul className="divide-y divide-slate-100 border border-slate-100 rounded-lg overflow-hidden bg-white">
+                  {serviceHealthOverview.preview.map((row) => (
+                    <li key={row.id} className="px-3 py-2.5 sm:px-4 sm:py-3">
                       <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-                        <div className="min-w-0 flex-1">
+                        <div className="min-w-0 flex-1 space-y-1">
                           <div className="flex flex-wrap items-center gap-2">
                             <Link
                               href={`/client/services/${row.id}`}
@@ -427,24 +455,45 @@ export default function ClientDashboardPage() {
                             </Link>
                             <HealthOverviewBadge health={row.health} />
                           </div>
-                          <p className="text-xs text-slate-500 mt-1">
+                          <p className="text-[11px] text-slate-500">
                             Client: <span className="text-slate-700 font-medium">{row.clientName}</span>
                           </p>
+                          {row.healthNote ? (
+                            <p className="text-[11px] text-slate-600 italic leading-snug break-words">
+                              {row.healthNote}
+                            </p>
+                          ) : null}
                         </div>
-                        <div className="text-left sm:text-right shrink-0 min-w-0">
-                          <p className="text-xs text-slate-500">Next action</p>
-                          <p className="text-sm text-[#0F172A] font-medium break-words">
-                            {row.nextAction ?? "—"}
-                          </p>
-                          <p className="text-[11px] text-slate-500 mt-0.5">
-                            Due: <span className="text-slate-700">{row.nextActionDueLabel}</span>
-                          </p>
-                        </div>
+                        {(row.nextAction || row.nextActionDueLabel !== "—") && (
+                          <div className="text-left sm:text-right shrink-0 min-w-0 sm:max-w-[45%]">
+                            {row.nextAction ? (
+                              <>
+                                <p className="text-[10px] uppercase tracking-wide text-slate-500">Next action</p>
+                                <p className="text-xs font-medium text-[#0F172A] break-words">{row.nextAction}</p>
+                              </>
+                            ) : null}
+                            {row.nextActionDueLabel !== "—" ? (
+                              <p className="text-[11px] text-slate-500 mt-1">
+                                Due{" "}
+                                <span className="font-medium text-slate-700">{row.nextActionDueLabel}</span>
+                              </p>
+                            ) : null}
+                          </div>
+                        )}
                       </div>
                     </li>
                   ))}
                 </ul>
               )}
+
+              {!serviceHealthOverview.hasAnyAttention && serviceHealthOverview.totalServices > 0 ? (
+                <div className="mt-4 rounded-xl border border-emerald-200/80 bg-emerald-50/90 px-4 py-3 sm:px-5 sm:py-4">
+                  <p className="text-sm font-semibold text-emerald-900">All services are healthy. You&apos;re in control.</p>
+                  <p className="text-xs text-emerald-800/90 mt-1">
+                    Nothing needs urgent action from you right now.
+                  </p>
+                </div>
+              ) : null}
             </div>
           </div>
         </div>
