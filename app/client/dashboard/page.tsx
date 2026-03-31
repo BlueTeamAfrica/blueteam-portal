@@ -12,6 +12,7 @@ import {
   orderBy,
   limit,
   Timestamp,
+  type QueryDocumentSnapshot,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useAuth } from "@/lib/authContext";
@@ -131,6 +132,28 @@ function classifyFirebaseError(code: string, message: string): LoadFailureDetail
   }
   if (c === "unavailable" || c === "deadline-exceeded" || m.includes("network")) return "network";
   return "unknown";
+}
+
+function queryDocCreatedMs(d: QueryDocumentSnapshot): number {
+  const data = d.data() as { createdAt?: { toDate?: () => Date } };
+  try {
+    const c = data.createdAt;
+    if (c && typeof c.toDate === "function") return c.toDate().getTime();
+  } catch {
+    /* ignore */
+  }
+  return 0;
+}
+
+function queryDocUpdatedMs(d: QueryDocumentSnapshot): number {
+  const data = d.data() as { updatedAt?: { toDate?: () => Date } };
+  try {
+    const u = data.updatedAt;
+    if (u && typeof u.toDate === "function") return u.toDate().getTime();
+  } catch {
+    /* ignore */
+  }
+  return queryDocCreatedMs(d);
 }
 
 function readFirebaseError(err: unknown): { code: string; message: string } {
@@ -344,13 +367,13 @@ export default function ClientDashboardPage() {
         totalServices: sortRows.length,
       });
 
-      let recentInvoicesSnap: Awaited<ReturnType<typeof getDocs>>;
+      let recentInvoiceDocs: QueryDocumentSnapshot[];
       try {
         console.log("CLIENT_DASHBOARD: running recent activity invoices query", {
           ...ctx,
           query: "invoices where clientId + orderBy createdAt desc limit 6",
         });
-        recentInvoicesSnap = await getDocs(
+        const recentInvoicesSnap = await getDocs(
           query(
             collection(db, "tenants", tid, "invoices"),
             where("clientId", "==", cid),
@@ -358,19 +381,41 @@ export default function ClientDashboardPage() {
             limit(6)
           )
         );
+        recentInvoiceDocs = recentInvoicesSnap.docs;
       } catch (err) {
-        fail("CLIENT_DASHBOARD: recent activity invoices query failed", "recent_activity_invoices", err);
-        setLoading(false);
-        return;
+        const { code } = readFirebaseError(err);
+        if (code === "failed-precondition") {
+          console.warn(
+            "CLIENT_DASHBOARD: recent activity invoices — missing composite index or not deployed; using clientId-only fetch + in-memory sort",
+            ctx
+          );
+          try {
+            const allInv = await getDocs(
+              query(collection(db, "tenants", tid, "invoices"), where("clientId", "==", cid))
+            );
+            recentInvoiceDocs = allInv.docs
+              .slice()
+              .sort((a, b) => queryDocCreatedMs(b) - queryDocCreatedMs(a))
+              .slice(0, 6);
+          } catch (fallbackErr) {
+            fail("CLIENT_DASHBOARD: recent activity invoices query failed", "recent_activity_invoices", fallbackErr);
+            setLoading(false);
+            return;
+          }
+        } else {
+          fail("CLIENT_DASHBOARD: recent activity invoices query failed", "recent_activity_invoices", err);
+          setLoading(false);
+          return;
+        }
       }
 
-      let recentServicesSnap: Awaited<ReturnType<typeof getDocs>>;
+      let recentServiceDocs: QueryDocumentSnapshot[];
       try {
         console.log("CLIENT_DASHBOARD: running recent activity services query", {
           ...ctx,
           query: "services where clientId + orderBy updatedAt desc limit 6",
         });
-        recentServicesSnap = await getDocs(
+        const recentServicesSnap = await getDocs(
           query(
             collection(db, "tenants", tid, "services"),
             where("clientId", "==", cid),
@@ -378,15 +423,37 @@ export default function ClientDashboardPage() {
             limit(6)
           )
         );
+        recentServiceDocs = recentServicesSnap.docs;
       } catch (err) {
-        fail("CLIENT_DASHBOARD: recent activity services query failed", "recent_activity_services", err);
-        setLoading(false);
-        return;
+        const { code } = readFirebaseError(err);
+        if (code === "failed-precondition") {
+          console.warn(
+            "CLIENT_DASHBOARD: recent activity services — missing composite index or not deployed; using clientId-only fetch + in-memory sort",
+            ctx
+          );
+          try {
+            const allSvc = await getDocs(
+              query(collection(db, "tenants", tid, "services"), where("clientId", "==", cid))
+            );
+            recentServiceDocs = allSvc.docs
+              .slice()
+              .sort((a, b) => queryDocUpdatedMs(b) - queryDocUpdatedMs(a))
+              .slice(0, 6);
+          } catch (fallbackErr) {
+            fail("CLIENT_DASHBOARD: recent activity services query failed", "recent_activity_services", fallbackErr);
+            setLoading(false);
+            return;
+          }
+        } else {
+          fail("CLIENT_DASHBOARD: recent activity services query failed", "recent_activity_services", err);
+          setLoading(false);
+          return;
+        }
       }
 
       const activity: RecentActivityItem[] = [];
 
-      recentInvoicesSnap.forEach((d) => {
+      recentInvoiceDocs.forEach((d) => {
         const data = d.data() as {
           invoiceNumber?: string;
           amount?: number;
@@ -412,7 +479,7 @@ export default function ClientDashboardPage() {
         });
       });
 
-      recentServicesSnap.forEach((d) => {
+      recentServiceDocs.forEach((d) => {
         const data = d.data() as {
           name?: string;
           billingType?: string;
