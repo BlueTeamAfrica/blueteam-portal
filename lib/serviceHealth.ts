@@ -69,3 +69,28 @@ export function healthPreviewPriority(health?: string): number {
   if (h === "paused") return 0;
   return 1;
 }
+
+/** Client dashboard: reassuring, plain-language status line (no internal codes). */
+export function getClientFriendlyHealthSummary(health?: string): string {
+  const h = normalizeServiceHealth(health);
+  if (h === "healthy") return "Everything is running smoothly";
+  if (h === "warning") return "We're monitoring a potential issue";
+  if (h === "critical") return "We're actively working on an issue";
+  if (h === "waiting_client") return "We need input from you";
+  if (h === "paused") return "This service is paused for now";
+  return "Everything is running smoothly";
+}
+
+/**
+ * Client-facing summary counts: only warning / critical / waiting_client are explicit;
+ * healthy includes explicit healthy, paused, unset, and unknown values.
+ */
+export function clientDashboardHealthBucket(
+  health?: string
+): "healthy" | "warning" | "critical" | "waiting_client" {
+  const h = normalizeServiceHealth(health);
+  if (h === "warning") return "warning";
+  if (h === "critical") return "critical";
+  if (h === "waiting_client") return "waiting_client";
+  return "healthy";
+}

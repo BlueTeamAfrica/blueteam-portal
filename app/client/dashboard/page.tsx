@@ -17,10 +17,9 @@ import { db } from "@/lib/firebase";
 import { useAuth } from "@/lib/authContext";
 import { useTenant } from "@/lib/tenantContext";
 import {
-  bucketServiceHealthForCounts,
-  getServiceHealthLabel,
+  clientDashboardHealthBucket,
+  getClientFriendlyHealthSummary,
   healthPreviewPriority,
-  isAttentionServiceHealth,
   normalizeServiceHealth,
 } from "@/lib/serviceHealth";
 
@@ -41,26 +40,25 @@ function getBillingTypeLabel(v?: string) {
   return v ? v : "—";
 }
 
-type ClientPreviewRow = {
+type ClientServiceHealthRow = {
   id: string;
   name: string;
-  clientName: string;
   health: string;
+  friendlyLine: string;
   healthNote?: string;
   nextAction?: string;
   nextActionDueLabel: string;
+  lastCheckedLabel: string;
 };
 
-type ClientHealthOverview = {
+type ClientServicesHealth = {
   counts: {
     healthy: number;
     warning: number;
     critical: number;
     waiting_client: number;
-    paused: number;
   };
-  preview: ClientPreviewRow[];
-  hasAnyAttention: boolean;
+  services: ClientServiceHealthRow[];
   totalServices: number;
 };
 
@@ -76,25 +74,39 @@ function formatServiceDue(ts?: Timestamp | null) {
   return "—";
 }
 
-function HealthOverviewBadge({ health }: { health?: string }) {
+function formatLastChecked(
+  lastCheckedAt?: Timestamp | null,
+  updatedAt?: Timestamp | null,
+  createdAt?: Timestamp | null
+) {
+  const pick = lastCheckedAt ?? updatedAt ?? createdAt;
+  if (!pick) return "—";
+  try {
+    if (typeof pick.toDate === "function") {
+      return pick.toDate().toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
+    }
+  } catch {
+    /* ignore */
+  }
+  return "—";
+}
+
+function healthStatusAccentClass(health?: string) {
   const h = normalizeServiceHealth(health);
-  const styles =
-    h === "healthy"
-      ? "bg-emerald-100 text-emerald-800"
-      : h === "warning"
-        ? "bg-amber-100 text-amber-800"
-        : h === "critical"
-          ? "bg-rose-100 text-rose-800"
-          : h === "waiting_client"
-            ? "bg-indigo-100 text-indigo-800"
-            : h === "paused"
-              ? "bg-slate-200 text-slate-700"
-              : "bg-slate-100 text-slate-600";
-  return (
-    <span className={`inline-flex px-2 py-0.5 rounded-full text-[11px] font-semibold ${styles}`}>
-      {getServiceHealthLabel(health)}
-    </span>
-  );
+  if (h === "critical") return "border-l-rose-500 bg-rose-50/40";
+  if (h === "warning") return "border-l-amber-500 bg-amber-50/35";
+  if (h === "waiting_client") return "border-l-indigo-500 bg-indigo-50/35";
+  if (h === "paused") return "border-l-slate-400 bg-slate-50/60";
+  return "border-l-emerald-500 bg-emerald-50/30";
+}
+
+function friendlyLineColorClass(health?: string) {
+  const h = normalizeServiceHealth(health);
+  if (h === "critical") return "text-rose-800";
+  if (h === "warning") return "text-amber-900";
+  if (h === "waiting_client") return "text-indigo-900";
+  if (h === "paused") return "text-slate-700";
+  return "text-emerald-900";
 }
 
 export default function ClientDashboardPage() {
@@ -105,7 +117,7 @@ export default function ClientDashboardPage() {
   const [unpaidInvoices, setUnpaidInvoices] = useState<number>(0);
   const [totalInvoices, setTotalInvoices] = useState<number>(0);
   const [recentActivity, setRecentActivity] = useState<RecentActivityItem[]>([]);
-  const [serviceHealthOverview, setServiceHealthOverview] = useState<ClientHealthOverview | null>(null);
+  const [clientServicesHealth, setClientServicesHealth] = useState<ClientServicesHealth | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -160,21 +172,22 @@ export default function ClientDashboardPage() {
           warning: 0,
           critical: 0,
           waiting_client: 0,
-          paused: 0,
         };
-        type RowSort = ClientPreviewRow & { _due: number; _prio: number };
+        type RowSort = ClientServiceHealthRow & { _due: number; _prio: number };
         const sortRows: RowSort[] = [];
 
         allServicesForHealth.forEach((d) => {
           const data = d.data() as {
             name?: string;
-            clientName?: string;
             health?: string;
             healthNote?: string;
             nextAction?: string;
             nextActionDue?: Timestamp | null;
+            lastCheckedAt?: Timestamp | null;
+            updatedAt?: Timestamp | null;
+            createdAt?: Timestamp | null;
           };
-          const bucket = bucketServiceHealthForCounts(data.health);
+          const bucket = clientDashboardHealthBucket(data.health);
           counts[bucket] += 1;
 
           let dueMs = Infinity;
@@ -189,18 +202,21 @@ export default function ClientDashboardPage() {
 
           sortRows.push({
             id: d.id,
-            name: data.name?.trim() ? data.name.trim() : "Untitled service",
-            clientName: data.clientName?.trim() ? data.clientName.trim() : resolvedClientName,
+            name: data.name?.trim() ? data.name.trim() : "Your service",
             health: data.health ?? "",
+            friendlyLine: getClientFriendlyHealthSummary(data.health),
             healthNote: data.healthNote?.trim() ? data.healthNote.trim() : undefined,
             nextAction: data.nextAction?.trim() ? data.nextAction.trim() : undefined,
             nextActionDueLabel: formatServiceDue(data.nextActionDue ?? null),
+            lastCheckedLabel: formatLastChecked(
+              data.lastCheckedAt ?? null,
+              data.updatedAt ?? null,
+              data.createdAt ?? null
+            ),
             _due: dueMs,
             _prio: healthPreviewPriority(data.health),
           });
         });
-
-        const hasAnyAttention = sortRows.some((r) => isAttentionServiceHealth(r.health));
 
         sortRows.sort((a, b) => {
           if (b._prio !== a._prio) return b._prio - a._prio;
@@ -208,13 +224,11 @@ export default function ClientDashboardPage() {
           return a.name.localeCompare(b.name);
         });
 
-        const previewLimit = hasAnyAttention ? 5 : 3;
-        const preview: ClientPreviewRow[] = sortRows.slice(0, previewLimit).map(({ _due, _prio, ...rest }) => rest);
+        const services: ClientServiceHealthRow[] = sortRows.slice(0, 5).map(({ _due, _prio, ...rest }) => rest);
 
-        setServiceHealthOverview({
+        setClientServicesHealth({
           counts,
-          preview,
-          hasAnyAttention,
+          services,
           totalServices: sortRows.length,
         });
 
@@ -362,141 +376,136 @@ export default function ClientDashboardPage() {
         </div>
       </div>
 
-      {serviceHealthOverview && (
-        <div className="mt-6 rounded-2xl border border-slate-200/80 bg-gradient-to-br from-slate-50 via-white to-indigo-50/40 shadow-sm overflow-hidden max-w-full">
-          <div className="px-4 py-3 sm:px-6 sm:py-4 border-b border-slate-200/80 bg-slate-900/[0.04] flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-            <div>
-              <h2 className="text-[#0F172A] text-lg font-semibold tracking-tight">Service Health Overview</h2>
-              <p className="text-xs text-slate-600 mt-0.5 max-w-xl">
-                Your managed services at a glance. Unset status counts as{" "}
-                <span className="font-medium text-slate-700">Healthy</span>.
-              </p>
+      {clientServicesHealth && (
+        <section className="mt-8 rounded-2xl border border-slate-200/90 bg-white shadow-sm overflow-hidden max-w-full">
+          <div className="px-4 py-4 sm:px-6 sm:py-5 border-b border-slate-100 bg-gradient-to-r from-slate-50/90 to-indigo-50/40">
+            <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
+              <div>
+                <h2 className="text-[#0F172A] text-lg font-semibold tracking-tight">Your Services Health</h2>
+                <p className="text-sm text-slate-600 mt-1 max-w-2xl leading-relaxed">
+                  A quick read on how your managed services are doing. We keep this updated so you always know where
+                  things stand — no jargon, no noise.
+                </p>
+              </div>
+              <Link
+                href="/client/services"
+                className="inline-flex items-center justify-center rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-medium text-white shadow-sm hover:bg-indigo-500 transition-colors shrink-0"
+              >
+                View all services
+              </Link>
             </div>
-            <Link
-              href="/client/services"
-              className="inline-flex items-center justify-center rounded-lg bg-indigo-600 px-3 py-2 text-sm font-medium text-white shadow-sm hover:bg-indigo-500 transition-colors shrink-0"
-            >
-              View services
-            </Link>
           </div>
-          <div className="p-4 sm:p-6 space-y-5">
-            <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 sm:gap-3">
+
+          <div className="p-4 sm:p-6 space-y-6">
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
               {(
                 [
-                  ["healthy", "Healthy", "emerald"],
-                  ["warning", "Warning", "amber"],
-                  ["critical", "Critical", "rose"],
-                  ["waiting_client", "Waiting on Client", "indigo"],
-                  ["paused", "Paused", "slate"],
+                  ["healthy", "Running smoothly", "Everything is running smoothly", "emerald"],
+                  ["warning", "Monitoring", "We're monitoring a potential issue", "amber"],
+                  ["critical", "Active support", "We're actively working on an issue", "rose"],
+                  ["waiting_client", "Needs your input", "We need input from you", "indigo"],
                 ] as const
-              ).map(([key, label, tone]) => {
-                const n = serviceHealthOverview.counts[key];
+              ).map(([key, shortLabel, longHint, tone]) => {
+                const n = clientServicesHealth.counts[key];
                 const ring =
                   tone === "emerald"
-                    ? "ring-emerald-200/80 bg-emerald-50/90"
+                    ? "ring-emerald-200/90 bg-emerald-50/80"
                     : tone === "amber"
-                      ? "ring-amber-200/80 bg-amber-50/90"
+                      ? "ring-amber-200/90 bg-amber-50/80"
                       : tone === "rose"
-                        ? "ring-rose-200/80 bg-rose-50/90"
-                        : tone === "indigo"
-                          ? "ring-indigo-200/80 bg-indigo-50/90"
-                          : "ring-slate-200/80 bg-slate-50/90";
+                        ? "ring-rose-200/90 bg-rose-50/80"
+                        : "ring-indigo-200/90 bg-indigo-50/80";
                 return (
                   <div
                     key={key}
-                    className={`rounded-xl border border-white/60 px-3 py-3 sm:py-4 shadow-sm ring-1 ${ring} min-w-0`}
+                    className={`rounded-xl px-3 py-3 sm:py-4 shadow-sm ring-1 border border-white/70 ${ring} min-w-0`}
                   >
-                    <p className="text-[10px] sm:text-xs font-semibold uppercase tracking-wide text-slate-600 truncate">
-                      {label}
-                    </p>
-                    <p className="mt-1 text-2xl sm:text-3xl font-bold tabular-nums text-[#0F172A]">{n}</p>
+                    <p className="text-[11px] font-semibold text-slate-600 uppercase tracking-wide">{shortLabel}</p>
+                    <p className="mt-1 text-2xl font-bold tabular-nums text-[#0F172A]">{n}</p>
+                    <p className="mt-2 text-[11px] text-slate-600 leading-snug">{longHint}</p>
                   </div>
                 );
               })}
             </div>
 
-            <div className="rounded-xl border border-slate-200 bg-white/90 backdrop-blur-sm p-4 sm:p-5 shadow-sm">
-              <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 mb-3">
-                <div>
-                  <h3 className="text-sm font-semibold text-[#0F172A]">Service preview</h3>
-                  <p className="text-xs text-slate-500 mt-0.5">
-                    {serviceHealthOverview.hasAnyAttention
-                      ? "We prioritize what needs follow-up first (up to 5 services)."
-                      : "Here are a few of your services — all clear on urgent items (up to 3)."}
-                  </p>
-                </div>
-                <Link
-                  href="/client/services"
-                  className="text-xs font-medium text-indigo-600 hover:text-indigo-500 hover:underline shrink-0"
-                >
-                  All your services →
-                </Link>
+            <div>
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-3">
+                <h3 className="text-sm font-semibold text-[#0F172A]">Your services</h3>
+                <p className="text-xs text-slate-500">Up to five services, prioritized by what matters most.</p>
               </div>
 
-              {serviceHealthOverview.totalServices === 0 ? (
-                <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50/90 px-4 py-5 text-center">
-                  <p className="text-sm font-medium text-slate-700">No services linked yet</p>
-                  <p className="text-xs text-slate-500 mt-1">When Blueteam adds services, they will appear here.</p>
+              {clientServicesHealth.totalServices === 0 ? (
+                <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50/90 px-4 py-8 text-center">
+                  <p className="text-sm font-medium text-slate-700">No services to show yet</p>
+                  <p className="text-xs text-slate-500 mt-2 max-w-md mx-auto leading-relaxed">
+                    When your services are connected to this portal, you&apos;ll see status and next steps here.
+                  </p>
                 </div>
-              ) : serviceHealthOverview.preview.length === 0 ? (
-                <p className="text-sm text-slate-500">No preview rows to show.</p>
               ) : (
-                <ul className="divide-y divide-slate-100 border border-slate-100 rounded-lg overflow-hidden bg-white">
-                  {serviceHealthOverview.preview.map((row) => (
-                    <li key={row.id} className="px-3 py-2.5 sm:px-4 sm:py-3">
-                      <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-                        <div className="min-w-0 flex-1 space-y-1">
-                          <div className="flex flex-wrap items-center gap-2">
-                            <Link
-                              href={`/client/services/${row.id}`}
-                              className="text-sm font-semibold text-indigo-700 hover:text-indigo-600 hover:underline break-words"
-                            >
-                              {row.name}
-                            </Link>
-                            <HealthOverviewBadge health={row.health} />
-                          </div>
-                          <p className="text-[11px] text-slate-500">
-                            Client: <span className="text-slate-700 font-medium">{row.clientName}</span>
+                <ul className="space-y-3">
+                  {clientServicesHealth.services.map((row) => (
+                    <li
+                      key={row.id}
+                      className={`rounded-xl border border-slate-100 border-l-4 pl-4 pr-3 py-3 sm:pl-5 sm:pr-4 sm:py-4 ${healthStatusAccentClass(row.health)}`}
+                    >
+                      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                        <div className="min-w-0 flex-1 space-y-2">
+                          <Link
+                            href={`/client/services/${row.id}`}
+                            className="text-base font-semibold text-[#0F172A] hover:text-indigo-700 transition-colors break-words"
+                          >
+                            {row.name}
+                          </Link>
+                          <p
+                            className={`inline-flex max-w-full rounded-lg px-3 py-1.5 text-xs font-semibold leading-snug bg-white/80 border border-white/90 shadow-sm ${friendlyLineColorClass(row.health)}`}
+                          >
+                            {row.friendlyLine}
                           </p>
                           {row.healthNote ? (
-                            <p className="text-[11px] text-slate-600 italic leading-snug break-words">
-                              {row.healthNote}
+                            <p className="text-sm text-slate-700 leading-relaxed break-words">{row.healthNote}</p>
+                          ) : null}
+                          <p className="text-xs text-slate-500">
+                            Last checked:{" "}
+                            <span className="font-medium text-slate-700">{row.lastCheckedLabel}</span>
+                          </p>
+                        </div>
+                        <div className="shrink-0 w-full sm:w-auto sm:max-w-[42%] sm:text-right space-y-1">
+                          {row.nextAction ? (
+                            <>
+                              <p className="text-[10px] uppercase tracking-wide text-slate-500">Next step</p>
+                              <p className="text-sm font-medium text-[#0F172A] break-words">{row.nextAction}</p>
+                            </>
+                          ) : null}
+                          {row.nextActionDueLabel !== "—" ? (
+                            <p className="text-xs text-slate-600">
+                              Target:{" "}
+                              <span className="font-medium text-slate-800">{row.nextActionDueLabel}</span>
                             </p>
                           ) : null}
+                          {!row.nextAction && row.nextActionDueLabel === "—" ? (
+                            <p className="text-xs text-slate-500 sm:text-right">No scheduled next step right now.</p>
+                          ) : null}
                         </div>
-                        {(row.nextAction || row.nextActionDueLabel !== "—") && (
-                          <div className="text-left sm:text-right shrink-0 min-w-0 sm:max-w-[45%]">
-                            {row.nextAction ? (
-                              <>
-                                <p className="text-[10px] uppercase tracking-wide text-slate-500">Next action</p>
-                                <p className="text-xs font-medium text-[#0F172A] break-words">{row.nextAction}</p>
-                              </>
-                            ) : null}
-                            {row.nextActionDueLabel !== "—" ? (
-                              <p className="text-[11px] text-slate-500 mt-1">
-                                Due{" "}
-                                <span className="font-medium text-slate-700">{row.nextActionDueLabel}</span>
-                              </p>
-                            ) : null}
-                          </div>
-                        )}
                       </div>
                     </li>
                   ))}
                 </ul>
               )}
 
-              {!serviceHealthOverview.hasAnyAttention && serviceHealthOverview.totalServices > 0 ? (
-                <div className="mt-4 rounded-xl border border-emerald-200/80 bg-emerald-50/90 px-4 py-3 sm:px-5 sm:py-4">
-                  <p className="text-sm font-semibold text-emerald-900">All services are healthy. You&apos;re in control.</p>
-                  <p className="text-xs text-emerald-800/90 mt-1">
-                    Nothing needs urgent action from you right now.
+              {clientServicesHealth.totalServices > 0 &&
+              clientServicesHealth.counts.warning === 0 &&
+              clientServicesHealth.counts.critical === 0 &&
+              clientServicesHealth.counts.waiting_client === 0 ? (
+                <div className="mt-5 rounded-xl border border-emerald-200/90 bg-emerald-50/80 px-4 py-4 sm:px-5">
+                  <p className="text-sm font-semibold text-emerald-950">You&apos;re in a good place.</p>
+                  <p className="text-sm text-emerald-900/90 mt-1 leading-relaxed">
+                    All services are running smoothly from our side. If anything changes, we&apos;ll reflect it here.
                   </p>
                 </div>
               ) : null}
             </div>
           </div>
-        </div>
+        </section>
       )}
 
       <div className="mt-6 flex flex-wrap gap-3">
