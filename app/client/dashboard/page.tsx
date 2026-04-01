@@ -64,6 +64,30 @@ type ClientServicesHealth = {
   totalServices: number;
 };
 
+/** Timeline row for "Coming Up" (subscriptions + service nextActionDue). */
+type ComingUpItem = {
+  id: string;
+  atMs: number;
+  dateLabel: string;
+  label: string;
+  amountLabel?: string;
+  href: string;
+};
+
+function startOfTodayMs(): number {
+  const t = new Date();
+  t.setHours(0, 0, 0, 0);
+  return t.getTime();
+}
+
+function formatComingUpDate(d: Date): string {
+  const now = new Date();
+  if (d.getFullYear() !== now.getFullYear()) {
+    return d.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
+  }
+  return d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+}
+
 function formatServiceDue(ts?: Timestamp | null) {
   if (!ts) return "—";
   try {
@@ -178,6 +202,7 @@ export default function ClientDashboardPage() {
   const [recentActivity, setRecentActivity] = useState<RecentActivityItem[]>([]);
   const [clientServicesHealth, setClientServicesHealth] = useState<ClientServicesHealth | null>(null);
   const [waitingTicketsCount, setWaitingTicketsCount] = useState(0);
+  const [comingUpItems, setComingUpItems] = useState<ComingUpItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [loadFailure, setLoadFailure] = useState<LoadFailureDetail | null>(null);
@@ -294,23 +319,6 @@ export default function ClientDashboardPage() {
       }
       setUnpaidInvoices(unpaidSnap.size);
 
-      try {
-        console.log("CLIENT_DASHBOARD: running subscriptions query (diagnostic)", ctx);
-        await getDocs(
-          query(collection(db, "tenants", tid, "subscriptions"), where("clientId", "==", cid))
-        );
-      } catch (err) {
-        const subErr = readFirebaseError(err);
-        console.error("CLIENT_DASHBOARD: subscriptions query failed", {
-          ...ctx,
-          firebaseCode: subErr.code,
-          firebaseMessage: subErr.message,
-          classification: classifyFirebaseError(subErr.code, subErr.message),
-          error: err,
-        });
-        /* Non-blocking: dashboard did not load subscriptions before; rules may deny — check console. */
-      }
-
       let allServicesForHealth: Awaited<ReturnType<typeof getDocs>>;
       try {
         console.log("CLIENT_DASHBOARD: running services query (health summary)", {
@@ -361,6 +369,8 @@ export default function ClientDashboardPage() {
       };
       type RowSort = ClientServiceHealthRow & { _due: number; _prio: number };
       const sortRows: RowSort[] = [];
+      const today0 = startOfTodayMs();
+      const comingUpFromServices: ComingUpItem[] = [];
 
       allServicesForHealth.forEach((d) => {
         const data = d.data() as {
@@ -385,6 +395,31 @@ export default function ClientDashboardPage() {
             dueMs = due.toDate().getTime();
           } catch {
             dueMs = Infinity;
+          }
+        }
+
+        if (due && typeof due.toDate === "function") {
+          try {
+            const actionDate = due.toDate();
+            const at = actionDate.getTime();
+            if (at >= today0) {
+              const svcName = getManagedServiceDisplayName({
+                name: data.name,
+                category: data.category,
+                categoryLabel: data.categoryLabel,
+              });
+              const action = data.nextAction?.trim();
+              const label = action && action.length > 0 ? action : `${svcName} — next step`;
+              comingUpFromServices.push({
+                id: `svc_due_${d.id}`,
+                atMs: at,
+                dateLabel: formatComingUpDate(actionDate),
+                label,
+                href: `/client/services/${d.id}`,
+              });
+            }
+          } catch {
+            /* ignore bad timestamp */
           }
         }
 
@@ -419,6 +454,67 @@ export default function ClientDashboardPage() {
         services,
         totalServices: sortRows.length,
       });
+
+      const comingUpFromSubscriptions: ComingUpItem[] = [];
+      try {
+        console.log("CLIENT_DASHBOARD: subscriptions query (Coming Up timeline)", ctx);
+        const subSnap = await getDocs(
+          query(collection(db, "tenants", tid, "subscriptions"), where("clientId", "==", cid))
+        );
+        subSnap.forEach((subDoc) => {
+          const data = subDoc.data() as {
+            name?: string;
+            price?: number;
+            currency?: string;
+            status?: string;
+            nextBillingDate?: Timestamp | null;
+          };
+          const st = (data.status ?? "").toLowerCase();
+          if (st === "cancelled" || st === "canceled") return;
+          const nb = data.nextBillingDate;
+          if (!nb || typeof nb.toDate !== "function") return;
+          try {
+            const billDate = nb.toDate();
+            const at = billDate.getTime();
+            if (at < today0) return;
+            const subName = data.name?.trim() ? data.name.trim() : "Subscription";
+            let amountLabel: string | undefined;
+            if (typeof data.price === "number") {
+              const cur = data.currency ?? "USD";
+              try {
+                amountLabel = new Intl.NumberFormat(undefined, { style: "currency", currency: cur }).format(
+                  data.price
+                );
+              } catch {
+                amountLabel = `${cur} ${data.price.toLocaleString()}`;
+              }
+            }
+            comingUpFromSubscriptions.push({
+              id: `sub_nb_${subDoc.id}`,
+              atMs: at,
+              dateLabel: formatComingUpDate(billDate),
+              label: `${subName} renewal`,
+              amountLabel,
+              href: "/client/subscriptions",
+            });
+          } catch {
+            /* ignore */
+          }
+        });
+      } catch (err) {
+        const subErr = readFirebaseError(err);
+        console.warn("CLIENT_DASHBOARD: subscriptions query failed (Coming Up may omit renewals)", {
+          ...ctx,
+          firebaseCode: subErr.code,
+          firebaseMessage: subErr.message,
+          error: err,
+        });
+      }
+
+      const mergedComingUp = [...comingUpFromSubscriptions, ...comingUpFromServices]
+        .sort((a, b) => a.atMs - b.atMs)
+        .slice(0, 5);
+      setComingUpItems(mergedComingUp);
 
       try {
         const waitingSnap = await getDocs(
@@ -749,6 +845,48 @@ export default function ClientDashboardPage() {
                     <span className="w-full sm:w-auto shrink-0 inline-flex items-center justify-center min-h-11 rounded-xl bg-[#4F46E5] px-4 py-2.5 text-sm font-semibold text-white sm:min-h-0 sm:bg-transparent sm:text-indigo-600 sm:px-3 sm:py-2 sm:font-semibold sm:hover:underline">
                       {row.cta}
                     </span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </section>
+
+      <section
+        className="mt-6 rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden max-w-full min-w-0"
+        aria-labelledby="coming-up-heading"
+      >
+        <div className="px-4 py-3 sm:px-5 border-b border-slate-100 bg-slate-50/80">
+          <h2 id="coming-up-heading" className="text-[#0F172A] text-base font-semibold">
+            Coming Up
+          </h2>
+        </div>
+        <div className="p-4 sm:p-5">
+          {comingUpItems.length === 0 ? (
+            <p className="text-sm text-slate-600 py-1">No upcoming actions</p>
+          ) : (
+            <ul className="divide-y divide-slate-100 list-none p-0 m-0">
+              {comingUpItems.map((item) => (
+                <li key={item.id} className="min-w-0">
+                  <Link
+                    href={item.href}
+                    className="flex flex-col gap-2 py-4 first:pt-0 last:pb-0 sm:flex-row sm:items-start sm:gap-6 sm:py-3.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#4F46E5] focus-visible:ring-inset rounded-lg -mx-1 px-1 hover:bg-slate-50/80 transition-colors"
+                  >
+                    <time
+                      dateTime={new Date(item.atMs).toISOString()}
+                      className="text-sm font-semibold text-slate-700 tabular-nums shrink-0 sm:w-28 sm:pt-0.5"
+                    >
+                      {item.dateLabel}
+                    </time>
+                    <div className="min-w-0 flex-1 space-y-0.5">
+                      <p className="text-[#0F172A] text-sm sm:text-base font-medium leading-snug break-words">
+                        {item.label}
+                        {item.amountLabel ? (
+                          <span className="text-slate-600 font-normal"> ({item.amountLabel})</span>
+                        ) : null}
+                      </p>
+                    </div>
                   </Link>
                 </li>
               ))}
