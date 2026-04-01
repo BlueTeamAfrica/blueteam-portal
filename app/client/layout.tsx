@@ -96,9 +96,9 @@ export default function ClientLayout({
   if (role !== "client") return null;
 
   return (
-    <div className="min-h-screen bg-[#F8FAFC] flex flex-col md:flex-row overflow-x-hidden">
-      {/* Mobile top bar — full width; does not reserve space beside a sidebar */}
-      <header className="md:hidden h-14 bg-white border-b border-slate-200 flex items-center justify-between px-4 shrink-0">
+    <div className="min-h-screen w-full max-w-[100vw] bg-[#F8FAFC] flex flex-col md:flex-row overflow-x-hidden">
+      {/* Mobile top bar — full viewport width; sidebar never shares this row */}
+      <header className="md:hidden h-14 w-full bg-white border-b border-slate-200 flex items-center justify-between px-4 shrink-0">
         <div className="flex items-center gap-3 min-w-0">
           <button
             type="button"
@@ -125,12 +125,12 @@ export default function ClientLayout({
       {drawerOpen && (
         <>
           <div
-            className="fixed inset-0 bg-black/40 z-40 md:hidden"
+            className="fixed inset-0 bg-black/40 z-[90] md:hidden"
             onClick={() => setDrawerOpen(false)}
             aria-hidden="true"
           />
           <aside
-            className={`fixed inset-y-0 left-0 ${DRAWER_WIDTH_CLASS} bg-white border-r border-slate-200 z-50 md:hidden flex flex-col shadow-xl`}
+            className={`fixed inset-y-0 left-0 ${DRAWER_WIDTH_CLASS} bg-white border-r border-slate-200 z-[100] md:hidden flex flex-col shadow-xl`}
             role="dialog"
             aria-modal="true"
             aria-label="Navigation menu"
@@ -165,9 +165,9 @@ export default function ClientLayout({
         </nav>
       </aside>
 
-      {/* Main: always full width on mobile (flex-1 min-w-0) */}
-      <div className="flex-1 flex flex-col min-w-0 max-w-full">
-        <header className="hidden md:flex h-14 bg-white border-b border-slate-200 items-center justify-end px-6 shrink-0">
+      {/* Main column: full width of viewport on mobile; drawer is position:fixed and does not participate in flex sizing */}
+      <div className="flex flex-1 flex-col min-w-0 w-full max-w-full md:min-h-0">
+        <header className="hidden md:flex h-14 w-full bg-white border-b border-slate-200 items-center justify-end px-6 shrink-0">
           <button
             type="button"
             onClick={() => signOut(auth).then(() => router.replace("/login"))}
@@ -176,7 +176,7 @@ export default function ClientLayout({
             Logout
           </button>
         </header>
-        <main className="flex-1 px-3 py-3 sm:px-4 sm:py-4 md:p-6 overflow-x-hidden overflow-y-auto min-w-0 max-w-full">
+        <main className="relative z-0 flex-1 w-full min-w-0 max-w-full px-3 py-3 sm:px-4 sm:py-4 md:p-6 overflow-x-hidden overflow-y-auto">
           {children}
         </main>
       </div>

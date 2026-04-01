@@ -66,14 +66,14 @@ export default function PortalShell({ children }: { children: React.ReactNode })
   }, [drawerOpen]);
 
   return (
-    <div className="min-h-screen bg-[#F8FAFC] flex flex-col md:flex-row overflow-x-hidden">
-      {/* Mobile top bar */}
-      <header className="md:hidden h-14 bg-white border-b border-slate-200 flex items-center justify-between px-4 shrink-0 min-w-0">
+    <div className="min-h-screen w-full max-w-[100vw] bg-[#F8FAFC] flex flex-col md:flex-row overflow-x-hidden">
+      {/* Mobile top bar — full width; nav drawer overlays content, does not shrink it */}
+      <header className="md:hidden h-14 w-full bg-white border-b border-slate-200 flex items-center justify-between px-4 shrink-0 min-w-0">
         <div className="flex items-center gap-3 min-w-0">
           <button
             type="button"
             onClick={() => setDrawerOpen(true)}
-            className="p-2 -ml-2 rounded-lg text-[#0F172A] hover:bg-slate-100"
+            className="p-2 -ml-2 rounded-lg text-[#0F172A] hover:bg-slate-100 shrink-0"
             aria-label="Open menu"
           >
             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -85,7 +85,7 @@ export default function PortalShell({ children }: { children: React.ReactNode })
         <button
           type="button"
           onClick={() => signOut(auth).then(() => router.replace("/login"))}
-          className="text-sm text-slate-500 hover:text-[#0F172A]"
+          className="text-sm text-slate-500 hover:text-[#0F172A] shrink-0"
         >
           Sign out
         </button>
@@ -95,12 +95,12 @@ export default function PortalShell({ children }: { children: React.ReactNode })
       {drawerOpen && (
         <>
           <div
-            className="fixed inset-0 bg-black/40 z-40 md:hidden"
+            className="fixed inset-0 bg-black/40 z-[90] md:hidden"
             onClick={() => setDrawerOpen(false)}
             aria-hidden="true"
           />
           <aside
-            className={`fixed inset-y-0 left-0 ${DRAWER_WIDTH_CLASS} bg-white border-r border-slate-200 z-50 md:hidden flex flex-col shadow-xl`}
+            className={`fixed inset-y-0 left-0 ${DRAWER_WIDTH_CLASS} bg-white border-r border-slate-200 z-[100] md:hidden flex flex-col shadow-xl`}
             role="dialog"
             aria-modal="true"
             aria-label="Navigation menu"
@@ -148,7 +148,9 @@ export default function PortalShell({ children }: { children: React.ReactNode })
             Sign out
           </button>
         </header>
-        <main className="flex-1 px-3 py-3 sm:px-4 sm:py-4 md:px-8 overflow-x-hidden overflow-y-auto max-w-full min-w-0">{children}</main>
+        <main className="relative z-0 flex-1 w-full min-w-0 max-w-full px-3 py-3 sm:px-4 sm:py-4 md:px-8 overflow-x-hidden overflow-y-auto">
+          {children}
+        </main>
       </div>
     </div>
   );

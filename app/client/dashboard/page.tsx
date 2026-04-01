@@ -655,7 +655,7 @@ export default function ClientDashboardPage() {
 
   return (
     <div className="min-w-0 max-w-full overflow-x-hidden">
-      <h1 className="text-[#0F172A] text-2xl font-semibold break-words">Dashboard</h1>
+      <h1 className="text-[#0F172A] text-2xl font-semibold">Dashboard</h1>
       <p className="text-slate-600 mt-1 break-words">{clientName}</p>
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-6">
@@ -678,8 +678,8 @@ export default function ClientDashboardPage() {
           <div className="px-4 py-4 sm:px-6 sm:py-5 border-b border-slate-100 bg-gradient-to-r from-slate-50/90 to-indigo-50/40">
             <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 min-w-0">
               <div className="min-w-0">
-                <h2 className="text-[#0F172A] text-lg font-semibold tracking-tight break-words">Your services</h2>
-                <p className="text-sm text-slate-600 mt-1 max-w-2xl leading-relaxed break-words">
+                <h2 className="text-[#0F172A] text-lg font-semibold tracking-tight">Your services</h2>
+                <p className="text-sm text-slate-600 mt-1 max-w-2xl leading-relaxed">
                   A simple snapshot of how your managed services are doing. We update this as our team works — plain
                   language, no guesswork. If we need something from you, you&apos;ll see it called out clearly.
                 </p>
@@ -717,9 +717,9 @@ export default function ClientDashboardPage() {
                     key={key}
                     className={`rounded-xl px-3 py-3 sm:py-4 shadow-sm ring-1 border border-white/70 ${ring} min-w-0`}
                   >
-                    <p className="text-[11px] font-semibold text-slate-600 uppercase tracking-wide break-words">{shortLabel}</p>
+                    <p className="text-xs font-semibold text-slate-600 uppercase tracking-wide">{shortLabel}</p>
                     <p className="mt-1 text-2xl font-bold tabular-nums text-[#0F172A]">{n}</p>
-                    <p className="mt-2 text-[11px] text-slate-600 leading-snug break-words">{longHint}</p>
+                    <p className="mt-2 text-xs text-slate-600 leading-snug">{longHint}</p>
                   </div>
                 );
               })}
@@ -740,7 +740,7 @@ export default function ClientDashboardPage() {
                     Once Blueteam starts managing your systems, you&apos;ll see live status, updates, and next steps
                     here.
                   </p>
-                  <p className="text-[11px] text-slate-500 mt-3 max-w-md mx-auto leading-relaxed">
+                  <p className="text-xs text-slate-500 mt-3 max-w-md mx-auto leading-relaxed">
                     We&apos;ll keep this updated automatically — no action needed from you.
                   </p>
                 </div>
@@ -775,7 +775,7 @@ export default function ClientDashboardPage() {
                         <div className="shrink-0 w-full sm:w-auto sm:max-w-[42%] sm:text-right space-y-1">
                           {row.nextAction ? (
                             <>
-                              <p className="text-[10px] uppercase tracking-wide text-slate-500">Next step</p>
+                              <p className="text-xs uppercase tracking-wide text-slate-500">Next step</p>
                               <p className="text-sm font-medium text-[#0F172A] break-words">{row.nextAction}</p>
                             </>
                           ) : null}
@@ -840,7 +840,7 @@ export default function ClientDashboardPage() {
 
       <div className="mt-8 bg-white rounded-2xl shadow-sm border border-slate-200 p-5 md:p-6 max-w-full min-w-0">
         <div className="flex items-center justify-between gap-4 min-w-0">
-          <h2 className="text-[#0F172A] font-semibold min-w-0 break-words">Recent Activity</h2>
+          <h2 className="text-[#0F172A] font-semibold min-w-0">Recent Activity</h2>
           <Link href="/client/services" className="text-sm text-indigo-600 hover:underline shrink-0">
             View services
           </Link>
@@ -855,7 +855,7 @@ export default function ClientDashboardPage() {
                   </div>
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center justify-between gap-3 min-w-0">
-                      <p className="text-sm font-medium text-[#0F172A] break-words min-w-0">{item.title}</p>
+                      <p className="text-sm font-medium text-[#0F172A] min-w-0 break-words">{item.title}</p>
                       <p className="text-xs text-slate-500 whitespace-nowrap shrink-0">{item.dateLabel}</p>
                     </div>
                     {item.subtitle ? (
