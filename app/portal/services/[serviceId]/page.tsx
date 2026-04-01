@@ -8,6 +8,7 @@ import {
   collection,
   doc,
   getDoc,
+  getDocs,
   serverTimestamp,
   Timestamp,
   updateDoc,
@@ -15,6 +16,7 @@ import {
 import { db } from "@/lib/firebase";
 import { useAuth } from "@/lib/authContext";
 import { useTenant } from "@/lib/tenantContext";
+import { isCanonicalClientId } from "@/lib/canonicalClientId";
 
 type BillingType = "none" | "one_time" | "recurring";
 type BillingInterval = "monthly" | "yearly";
@@ -238,6 +240,13 @@ export default function PortalServiceDetailPage() {
   const [billingUpdateError, setBillingUpdateError] = useState<string | null>(null);
   const [linkedSub, setLinkedSub] = useState<{ id: string; status?: SubStatus; name?: string } | null>(null);
 
+  const canManageClientLink = role === "admin" || role === "owner";
+  type TenantClientRow = { id: string; name?: string; email?: string };
+  const [tenantClients, setTenantClients] = useState<TenantClientRow[]>([]);
+  const [repairClientId, setRepairClientId] = useState<string>("");
+  const [clientLinkSaving, setClientLinkSaving] = useState(false);
+  const [clientLinkError, setClientLinkError] = useState<string | null>(null);
+
   useEffect(() => {
     const tid = tenant?.id;
     if (!user || !tid || !serviceId) {
@@ -268,6 +277,44 @@ export default function PortalServiceDetailPage() {
 
     load();
   }, [user, tenant?.id, serviceId]);
+
+  useEffect(() => {
+    const tid = tenant?.id;
+    if (!user || !tid || !canManageClientLink) {
+      setTenantClients([]);
+      return;
+    }
+    let cancelled = false;
+    async function loadClients() {
+      try {
+        const snap = await getDocs(collection(db, "tenants", tid as string, "clients"));
+        if (cancelled) return;
+        setTenantClients(
+          snap.docs.map((d) => ({
+            id: d.id,
+            name: d.data().name as string | undefined,
+            email: d.data().email as string | undefined,
+          }))
+        );
+      } catch {
+        if (!cancelled) setTenantClients([]);
+      }
+    }
+    loadClients();
+    return () => {
+      cancelled = true;
+    };
+  }, [user, tenant?.id, canManageClientLink]);
+
+  useEffect(() => {
+    if (!service || tenantClients.length === 0) return;
+    const current = service.clientId?.trim();
+    if (current && tenantClients.some((c) => c.id === current)) {
+      setRepairClientId(current);
+      return;
+    }
+    setRepairClientId(tenantClients[0].id);
+  }, [service?.clientId, tenantClients]);
 
   useEffect(() => {
     const tid = tenant?.id;
@@ -324,6 +371,38 @@ export default function PortalServiceDetailPage() {
     setBillingStartDate(formatDateInputValue(service.startDate ?? null));
     setBillingNextDate(formatDateInputValue(service.nextBillingDate ?? null));
   }, [service, canEditBilling]);
+
+  async function handleSaveClientLinkage(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setClientLinkSaving(true);
+    setClientLinkError(null);
+    try {
+      const tid = tenant?.id;
+      const sid = serviceId;
+      if (!tid || !sid) {
+        setClientLinkError("Missing tenant or service id.");
+        return;
+      }
+      const picked = tenantClients.find((c) => c.id === repairClientId.trim());
+      if (!picked || !isCanonicalClientId(picked.id)) {
+        setClientLinkError("Choose a valid client from the list.");
+        return;
+      }
+      const clientName = picked.name?.trim() ? picked.name.trim() : picked.email?.trim() ?? picked.id;
+      const ref = doc(db, "tenants", tid, "services", sid);
+      await updateDoc(ref, {
+        clientId: picked.id,
+        clientName,
+        updatedAt: serverTimestamp(),
+      });
+      const snap = await getDoc(ref);
+      if (snap.exists()) setService(snap.data() as Service);
+    } catch (err) {
+      setClientLinkError((err as { message?: string }).message ?? "Failed to update client linkage.");
+    } finally {
+      setClientLinkSaving(false);
+    }
+  }
 
   async function handleUpdateHealth(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -409,6 +488,13 @@ export default function PortalServiceDetailPage() {
         return;
       }
 
+      if (billingType === "recurring" && !isCanonicalClientId(service?.clientId)) {
+        setBillingUpdateError(
+          "Set a client on this service before enabling recurring billing — clientId must match tenants/.../clients/{id} and the client user's users/{uid}.clientId."
+        );
+        return;
+      }
+
       const svcRef = doc(db, "tenants", tid, "services", sid);
 
       await updateDoc(svcRef, {
@@ -430,7 +516,12 @@ export default function PortalServiceDetailPage() {
       if (billingType === "recurring") {
         const svcSnap = await getDoc(svcRef);
         const freshService = svcSnap.exists() ? (svcSnap.data() as Service) : undefined;
-        const existingSubId = freshService?.subscriptionId;
+        const linkedId = freshService?.clientId;
+        if (!freshService || !isCanonicalClientId(linkedId)) {
+          setBillingUpdateError("Cannot sync subscription: service is missing a valid clientId.");
+          return;
+        }
+        const existingSubId = freshService.subscriptionId;
         const effectiveNext = nextDate ?? computeNextBillingDate(start, billingInterval);
         const currency = billingCurrency.trim() ? billingCurrency.trim().toUpperCase() : "USD";
         const name = freshService?.name ?? "Service subscription";
@@ -438,7 +529,7 @@ export default function PortalServiceDetailPage() {
         if (existingSubId) {
           await updateDoc(doc(db, "tenants", tid, "subscriptions", existingSubId), {
             serviceId: sid,
-            clientId: freshService?.clientId ?? null,
+            clientId: linkedId,
             clientName: freshService?.clientName ?? null,
             name,
             price: priceNumber ?? 0,
@@ -452,7 +543,7 @@ export default function PortalServiceDetailPage() {
         } else {
           const createdSub = await addDoc(collection(db, "tenants", tid, "subscriptions"), {
             serviceId: sid,
-            clientId: freshService?.clientId ?? null,
+            clientId: linkedId,
             clientName: freshService?.clientName ?? null,
             name,
             price: priceNumber ?? 0,
@@ -583,6 +674,58 @@ export default function PortalServiceDetailPage() {
         </div>
       )}
 
+      {canManageClientLink && !isCanonicalClientId(service.clientId) ? (
+        <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50/90 p-4 md:p-5 max-w-full">
+          <p className="text-sm font-medium text-amber-950">Client portal linkage</p>
+          {service.clientName?.trim() ? (
+            <p className="mt-2 text-sm text-amber-900/90 leading-relaxed">
+              This service has a client name on file but no{" "}
+              <span className="font-mono text-xs bg-amber-100/80 px-1 rounded">clientId</span>. Client users only see
+              services where{" "}
+              <span className="font-mono text-xs bg-amber-100/80 px-1 rounded">service.clientId</span> matches{" "}
+              <span className="font-mono text-xs bg-amber-100/80 px-1 rounded">users/&lt;uid&gt;.clientId</span> (the
+              same id as <span className="font-mono text-xs bg-amber-100/80 px-1 rounded">clients/{"{"}id{"}"}</span>).
+            </p>
+          ) : (
+            <p className="mt-2 text-sm text-amber-900/90 leading-relaxed">
+              No <span className="font-mono text-xs bg-amber-100/80 px-1 rounded">clientId</span> on this service yet.
+              Assign the canonical client record so the right portal user can see it.
+            </p>
+          )}
+          {tenantClients.length === 0 ? (
+            <p className="mt-3 text-xs text-amber-800">Add a client under Portal → Clients, then return here to link.</p>
+          ) : (
+            <form onSubmit={handleSaveClientLinkage} className="mt-4 flex flex-col sm:flex-row sm:items-end gap-3">
+              <div className="flex-1 min-w-0">
+                <label htmlFor="repair-client" className="block text-xs font-medium text-amber-950 mb-1">
+                  Link to client
+                </label>
+                <select
+                  id="repair-client"
+                  value={repairClientId}
+                  onChange={(e) => setRepairClientId(e.target.value)}
+                  className="w-full px-3 py-2 rounded-lg border border-amber-200/80 bg-white text-[#0F172A] text-sm"
+                >
+                  {tenantClients.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name ?? c.email ?? c.id}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <button
+                type="submit"
+                disabled={clientLinkSaving}
+                className="px-4 py-2 rounded-lg bg-amber-800 text-white text-sm font-medium hover:bg-amber-900 disabled:opacity-60 shrink-0"
+              >
+                {clientLinkSaving ? "Saving…" : "Save client linkage"}
+              </button>
+            </form>
+          )}
+          {clientLinkError ? <p className="mt-2 text-sm text-rose-700 break-words">{clientLinkError}</p> : null}
+        </div>
+      ) : null}
+
       <div className="mt-4 grid grid-cols-1 lg:grid-cols-3 gap-4 max-w-full">
         <div className="lg:col-span-2 bg-white rounded-2xl shadow-sm border border-slate-200 p-5 md:p-6 max-w-full">
           <h2 className="text-[#0F172A] font-semibold">Service Overview</h2>
@@ -602,6 +745,11 @@ export default function PortalServiceDetailPage() {
             <div className="bg-slate-50 rounded-xl p-4 border border-slate-100">
               <p className="text-xs text-slate-500">Linked client</p>
               <p className="mt-1 text-[#0F172A] font-medium break-words">{service.clientName ?? service.clientId ?? "—"}</p>
+              {isCanonicalClientId(service.clientId) ? (
+                <p className="mt-1 text-[11px] text-slate-500 font-mono break-all">clientId: {service.clientId}</p>
+              ) : service.clientName?.trim() ? (
+                <p className="mt-1 text-[11px] text-amber-800">Missing clientId — see warning above to fix.</p>
+              ) : null}
             </div>
             <div className="bg-slate-50 rounded-xl p-4 border border-slate-100">
               <p className="text-xs text-slate-500">Linked project</p>

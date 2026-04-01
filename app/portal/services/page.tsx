@@ -16,6 +16,7 @@ import { db } from "@/lib/firebase";
 import { useAuth } from "@/lib/authContext";
 import { useTenant } from "@/lib/tenantContext";
 import { MANAGED_SERVICE_CATEGORIES } from "@/lib/managedServiceCategories";
+import { isCanonicalClientId } from "@/lib/canonicalClientId";
 
 type ServiceStatus = "active" | "paused" | "pending" | "cancelled" | "retired";
 type BillingType = "none" | "one_time" | "recurring";
@@ -37,7 +38,7 @@ type Service = {
 };
 
 type Client = { id: string; name?: string; email?: string };
-type Project = { id: string; name?: string };
+type Project = { id: string; name?: string; clientId?: string };
 
 function formatDate(ts?: Timestamp) {
   if (!ts) return "—";
@@ -202,10 +203,14 @@ export default function PortalServicesPage() {
         }))
       );
       setProjects(
-        projectsSnap.docs.map((d) => ({
-          id: d.id,
-          name: d.data().name,
-        }))
+        projectsSnap.docs.map((d) => {
+          const data = d.data();
+          return {
+            id: d.id,
+            name: data.name,
+            clientId: data.clientId as string | undefined,
+          };
+        })
       );
       setServices(
         svcSnap.docs.map((d) => {
@@ -246,12 +251,17 @@ export default function PortalServicesPage() {
     setFormRenewalDate((v) => v);
     setFormNotes((v) => v);
 
-    if (!formClientId && clients.length > 0) setFormClientId(clients[0].id);
     // Default start date should reflect the actual "today" each time the modal opens.
     setFormStartDate(getTodayIso());
     if (!formProjectId) setFormProjectId("");
     if (!formCategory && MANAGED_SERVICE_CATEGORIES[0]?.value) setFormCategory(MANAGED_SERVICE_CATEGORIES[0].value);
   }, [showCreate]); // intentionally not depending on form fields
+
+  // Keep selected client aligned with loaded clients list (canonical id = clients/{docId}).
+  useEffect(() => {
+    if (!showCreate || clients.length === 0) return;
+    setFormClientId((prev) => (prev && clients.some((c) => c.id === prev) ? prev : clients[0].id));
+  }, [showCreate, clients]);
 
   const clientLabelById = useMemo(() => {
     const map = new Map<string, string>();
@@ -299,9 +309,15 @@ export default function PortalServicesPage() {
     setCreateError(null);
 
     try {
-      const selectedClient = clients.find((c) => c.id === formClientId);
+      const selectedClient = clients.find((c) => c.id === formClientId.trim());
       if (!selectedClient) {
-        setCreateError("Please select a client.");
+        setCreateError("Please select a client from your tenant client list.");
+        return;
+      }
+
+      const canonicalClientId = selectedClient.id;
+      if (!isCanonicalClientId(canonicalClientId)) {
+        setCreateError("Invalid client record — missing canonical client id.");
         return;
       }
 
@@ -345,10 +361,20 @@ export default function PortalServicesPage() {
       const selectedProject = formProjectId
         ? projects.find((p) => p.id === formProjectId)
         : undefined;
+      if (
+        selectedProject?.clientId &&
+        isCanonicalClientId(selectedProject.clientId) &&
+        selectedProject.clientId !== canonicalClientId
+      ) {
+        setCreateError(
+          "The selected project belongs to a different client. Clear the project or pick one for this client."
+        );
+        return;
+      }
 
       const payload: Record<string, unknown> = {
         name: categoryOpt.label,
-        clientId: formClientId,
+        clientId: canonicalClientId,
         clientName: selectedClient.name ?? selectedClient.email ?? selectedClient.id,
         category: categoryOpt.value,
         categoryLabel: categoryOpt.label,
@@ -398,7 +424,7 @@ export default function PortalServicesPage() {
           return;
         }
         const sub = await addDoc(collection(db, "tenants", tenant.id, "subscriptions"), {
-          clientId: formClientId,
+          clientId: canonicalClientId,
           clientName: selectedClient.name ?? selectedClient.email ?? selectedClient.id,
           name: categoryOpt.label,
           price: priceNumber ?? 0,
@@ -567,6 +593,11 @@ export default function PortalServicesPage() {
                       </option>
                     ))}
                   </select>
+                  <p className="mt-1 text-[11px] text-slate-500 leading-snug">
+                    Stored as <span className="font-mono text-slate-600">clientId</span> on the service. Use the same id
+                    as <span className="font-mono text-slate-600">users/&lt;uid&gt;.clientId</span> for that client&apos;s
+                    portal login.
+                  </p>
                 </div>
 
                 <div>
@@ -776,6 +807,8 @@ export default function PortalServicesPage() {
                 {filtered.map((s) => {
                   const clientLabel = s.clientName ?? (s.clientId ? clientLabelById.get(s.clientId) : undefined) ?? "—";
                   const projectLabel = s.projectName ?? (s.projectId ? projectLabelById.get(s.projectId) : undefined) ?? "—";
+                  const clientLinkBroken =
+                    Boolean(s.clientName?.trim()) && !isCanonicalClientId(s.clientId);
                   return (
                     <tr
                       key={s.id}
@@ -798,7 +831,19 @@ export default function PortalServicesPage() {
                           <div className="text-xs text-slate-500 mt-0.5 break-words">Tier: {s.tier}</div>
                         ) : null}
                       </td>
-                      <td className="py-3 px-4 text-[#0F172A]">{clientLabel}</td>
+                      <td className="py-3 px-4 text-[#0F172A]">
+                        <span className="break-words">{clientLabel}</span>
+                        {clientLinkBroken ? (
+                          <span className="block text-[11px] text-amber-800 mt-1 leading-snug">
+                            Name on file but no clientId — fix on service detail.
+                          </span>
+                        ) : null}
+                        {!isCanonicalClientId(s.clientId) && !clientLinkBroken ? (
+                          <span className="block text-[11px] text-amber-800 mt-1 leading-snug">
+                            Missing clientId — client portal won&apos;t list this service.
+                          </span>
+                        ) : null}
+                      </td>
                       <td className="py-3 px-4">
                         <StatusBadge status={s.status} />
                       </td>
