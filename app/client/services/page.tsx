@@ -158,40 +158,49 @@ export default function ClientServicesPage() {
         </div>
       ) : (
         <>
-          <div className="mt-6 md:hidden space-y-3">
+          <ul className="mt-6 md:hidden space-y-3 list-none p-0 m-0">
             {rows.map((s) => (
-              <button
-                key={s.id}
-                type="button"
-                onClick={() => router.push(`/client/services/${s.id}`)}
-                className="w-full text-left rounded-xl border border-slate-200 bg-white p-4 shadow-sm active:bg-slate-50"
-              >
-                <div className="flex items-start justify-between gap-2 min-w-0">
-                  <div className="min-w-0">
-                    <p className="font-semibold text-[#0F172A] break-words">{s.displayName}</p>
-                    {s.categoryDisplay ? (
-                      <p className="text-xs text-slate-500 mt-0.5 break-words">{s.categoryDisplay}</p>
+              <li key={s.id} className="min-w-0">
+                <Link
+                  href={`/client/services/${s.id}`}
+                  className="block rounded-2xl border border-slate-200 bg-white p-4 shadow-sm active:bg-slate-50/80 min-h-[4.5rem] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#4F46E5] focus-visible:ring-offset-2"
+                >
+                  <div className="flex items-start justify-between gap-3 min-w-0">
+                    <div className="min-w-0 flex-1">
+                      <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Service</p>
+                      <p className="text-lg font-semibold text-[#0F172A] break-words leading-snug">{s.displayName}</p>
+                    </div>
+                    <div className="flex items-start gap-2 shrink-0">
+                      <StatusBadge status={s.status} />
+                      <span className="text-slate-300 mt-0.5" aria-hidden>
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                        </svg>
+                      </span>
+                    </div>
+                  </div>
+                  <dl className="mt-4 space-y-2 text-sm border-t border-slate-100 pt-4">
+                    <div className="flex justify-between gap-3">
+                      <dt className="text-slate-500 shrink-0">Category</dt>
+                      <dd className="font-medium text-[#0F172A] text-right break-words">{s.categoryDisplay || "—"}</dd>
+                    </div>
+                    <div className="flex justify-between gap-3">
+                      <dt className="text-slate-500 shrink-0">Renewal</dt>
+                      <dd className="font-medium text-[#0F172A] tabular-nums text-right">{formatDate(s.renewalDate)}</dd>
+                    </div>
+                    {(s.projectName || s.projectId) ? (
+                      <div className="flex justify-between gap-3">
+                        <dt className="text-slate-500 shrink-0">Project</dt>
+                        <dd className="font-medium text-[#0F172A] text-right break-words">
+                          {s.projectName ?? s.projectId}
+                        </dd>
+                      </div>
                     ) : null}
-                  </div>
-                  <div className="shrink-0">
-                    <StatusBadge status={s.status} />
-                  </div>
-                </div>
-                <dl className="mt-3 space-y-1.5 text-sm text-slate-600">
-                  <div className="flex justify-between gap-2">
-                    <dt className="text-slate-500">Renewal</dt>
-                    <dd className="font-medium text-[#0F172A]">{formatDate(s.renewalDate)}</dd>
-                  </div>
-                  <div className="flex justify-between gap-2">
-                    <dt className="text-slate-500">Project</dt>
-                    <dd className="font-medium text-[#0F172A] text-right break-words">
-                      {s.projectName ?? s.projectId ?? "—"}
-                    </dd>
-                  </div>
-                </dl>
-              </button>
+                  </dl>
+                </Link>
+              </li>
             ))}
-          </div>
+          </ul>
 
           <div className="mt-6 hidden md:block bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden max-w-full">
             <div className="w-full overflow-x-auto">

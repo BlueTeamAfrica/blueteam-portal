@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { collection, getDocs, query, where } from "firebase/firestore";
+import { collection, getDocs, query, where, Timestamp } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useAuth } from "@/lib/authContext";
 import { useTenant } from "@/lib/tenantContext";
@@ -14,7 +14,38 @@ type Invoice = {
   clientName?: string;
   status?: string;
   amount?: number;
+  currency?: string;
+  dueDate?: Timestamp;
 };
+
+function formatDate(ts?: Timestamp | null) {
+  if (!ts) return "—";
+  try {
+    if (typeof ts.toDate === "function") {
+      return ts.toDate().toLocaleDateString(undefined, { dateStyle: "medium" });
+    }
+  } catch {
+    /* ignore */
+  }
+  return "—";
+}
+
+function StatusBadge({ status }: { status?: string }) {
+  const s = (status ?? "").toLowerCase();
+  const styles =
+    s === "paid"
+      ? "bg-emerald-100 text-emerald-800"
+      : s === "unpaid"
+        ? "bg-red-100 text-red-800"
+        : s === "overdue"
+          ? "bg-amber-100 text-amber-800"
+          : "bg-slate-100 text-slate-600";
+  return (
+    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${styles}`}>
+      {status ?? "—"}
+    </span>
+  );
+}
 
 export default function ClientInvoicesPage() {
   const { user } = useAuth();
@@ -50,6 +81,8 @@ export default function ClientInvoicesPage() {
               clientName: data.clientName,
               status: data.status,
               amount: typeof data.amount === "number" ? data.amount : undefined,
+              currency: typeof data.currency === "string" ? data.currency : undefined,
+              dueDate: data.dueDate,
             };
           })
         );
@@ -127,12 +160,22 @@ export default function ClientInvoicesPage() {
     }
   };
 
+  const formatAmount = (inv: Invoice) => {
+    if (inv.amount == null) return "—";
+    const cur = inv.currency ?? "USD";
+    try {
+      return new Intl.NumberFormat(undefined, { style: "currency", currency: cur }).format(inv.amount);
+    } catch {
+      return `${cur} ${inv.amount.toLocaleString()}`;
+    }
+  };
+
   if (!user) return <p className="text-[#0F172A]">Please log in</p>;
   if (!tenant) return <p className="text-[#0F172A]">Loading tenant…</p>;
   if (role !== "client" || !clientId) return <p className="text-[#0F172A]">Access denied.</p>;
   if (loading) return <p className="text-[#0F172A]">Loading invoices…</p>;
   if (error) return (
-    <div>
+    <div className="max-w-full min-w-0">
       <h1 className="text-[#0F172A] text-2xl font-semibold">Invoices</h1>
       <div className="mt-6 bg-white rounded-xl shadow-sm border border-slate-200 p-6">
         <p className="text-red-600">{error}</p>
@@ -140,71 +183,96 @@ export default function ClientInvoicesPage() {
     </div>
   );
 
-  function StatusBadge({ status }: { status?: string }) {
-    const s = (status ?? "").toLowerCase();
-    const styles =
-      s === "paid"
-        ? "bg-emerald-100 text-emerald-800"
-        : s === "unpaid"
-          ? "bg-red-100 text-red-800"
-          : s === "overdue"
-            ? "bg-amber-100 text-amber-800"
-            : "bg-slate-100 text-slate-600";
-    return (
-      <span className={`inline-flex px-2.5 py-0.5 rounded-full text-xs font-medium ${styles}`}>
-        {status ?? "—"}
-      </span>
-    );
-  }
-
   return (
-    <div>
-      <h1 className="text-[#0F172A] text-2xl font-semibold">Invoices</h1>
-      <Link href="/client/dashboard" className="inline-block mt-2 text-[#4F46E5] hover:underline text-sm">
-        ← Back to dashboard
-      </Link>
+    <div className="max-w-full min-w-0">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <h1 className="text-[#0F172A] text-2xl font-semibold">Invoices</h1>
+          <Link href="/client/dashboard" className="inline-block mt-2 text-indigo-600 hover:underline text-sm py-1">
+            ← Back to dashboard
+          </Link>
+        </div>
+      </div>
 
       {invoices.length === 0 ? (
-        <div className="mt-6 bg-white rounded-xl shadow-sm border border-slate-200 p-12 text-center">
+        <div className="mt-6 bg-white rounded-xl shadow-sm border border-slate-200 p-8 md:p-12 text-center">
           <p className="text-slate-500 text-lg">No invoices yet</p>
           <p className="text-slate-400 text-sm mt-1">Your invoices will appear here when they are issued.</p>
         </div>
       ) : (
-        <div className="mt-6 bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-          <table className="w-full border-collapse">
-            <thead>
-              <tr className="border-b border-slate-200 bg-slate-50">
-                <th className="text-left py-3 px-4 text-sm font-medium text-[#0F172A]">Invoice #</th>
-                <th className="text-left py-3 px-4 text-sm font-medium text-[#0F172A]">Status</th>
-                <th className="text-right py-3 px-4 text-sm font-medium text-[#0F172A]">Amount</th>
-                <th className="text-right">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {invoices.map((inv) => (
-                <tr key={inv.id} className="border-b border-slate-100 last:border-0">
-                  <td className="py-3 px-4 text-[#0F172A]">{inv.invoiceNumber ?? "—"}</td>
-                  <td className="py-3 px-4">
-                    <StatusBadge status={inv.status} />
-                  </td>
-                  <td className="py-3 px-4 text-right text-[#0F172A]">
-                    {inv.amount != null ? `$${inv.amount.toLocaleString()}` : "—"}
-                  </td>
-                  <td className="text-right">
-                    <button
-                      type="button"
-                      disabled={downloadingPdfId === inv.id}
-                      className="text-blue-600 hover:underline disabled:opacity-50 disabled:cursor-not-allowed"
-                      onClick={() => downloadPdf(inv)}
-                    >
-                      {downloadingPdfId === inv.id ? "Downloading…" : "Download PDF"}
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <>
+          {/* Mobile: stacked cards */}
+          <ul className="mt-6 md:hidden space-y-3 list-none p-0 m-0">
+            {invoices.map((inv) => (
+              <li
+                key={inv.id}
+                className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm min-w-0"
+              >
+                <div className="flex items-start justify-between gap-3 min-w-0">
+                  <div className="min-w-0 flex-1">
+                    <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Invoice</p>
+                    <p className="text-lg font-semibold text-[#0F172A] truncate">{inv.invoiceNumber ?? "—"}</p>
+                    <p className="mt-2 text-2xl font-semibold text-[#0F172A] tabular-nums">{formatAmount(inv)}</p>
+                  </div>
+                  <StatusBadge status={inv.status} />
+                </div>
+                <dl className="mt-4 space-y-2 text-sm border-t border-slate-100 pt-4">
+                  <div className="flex justify-between gap-3">
+                    <dt className="text-slate-500 shrink-0">Due date</dt>
+                    <dd className="font-medium text-[#0F172A] text-right">{formatDate(inv.dueDate)}</dd>
+                  </div>
+                </dl>
+                <button
+                  type="button"
+                  disabled={downloadingPdfId === inv.id}
+                  onClick={() => downloadPdf(inv)}
+                  className="mt-4 w-full min-h-11 rounded-xl bg-[#4F46E5] px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-indigo-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                >
+                  {downloadingPdfId === inv.id ? "Downloading…" : "Download PDF"}
+                </button>
+              </li>
+            ))}
+          </ul>
+
+          {/* Desktop: table */}
+          <div className="mt-6 hidden md:block bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden max-w-full">
+            <div className="w-full overflow-x-auto">
+              <table className="min-w-[640px] w-full border-collapse">
+                <thead>
+                  <tr className="border-b border-slate-200 bg-slate-50">
+                    <th className="text-left py-3 px-4 text-sm font-medium text-[#0F172A]">Invoice #</th>
+                    <th className="text-left py-3 px-4 text-sm font-medium text-[#0F172A]">Status</th>
+                    <th className="text-right py-3 px-4 text-sm font-medium text-[#0F172A]">Amount</th>
+                    <th className="text-left py-3 px-4 text-sm font-medium text-[#0F172A]">Due</th>
+                    <th className="text-right py-3 px-4 text-sm font-medium text-[#0F172A]">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {invoices.map((inv) => (
+                    <tr key={inv.id} className="border-b border-slate-100 last:border-0">
+                      <td className="py-3 px-4 text-[#0F172A] font-medium">{inv.invoiceNumber ?? "—"}</td>
+                      <td className="py-3 px-4">
+                        <StatusBadge status={inv.status} />
+                      </td>
+                      <td className="py-3 px-4 text-right text-[#0F172A] tabular-nums">{formatAmount(inv)}</td>
+                      <td className="py-3 px-4 text-[#0F172A]">{formatDate(inv.dueDate)}</td>
+                      <td className="py-3 px-4 text-right">
+                        <button
+                          type="button"
+                          disabled={downloadingPdfId === inv.id}
+                          className="text-indigo-600 hover:underline disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium py-2 px-1 min-h-11 inline-flex items-center justify-end"
+                          onClick={() => downloadPdf(inv)}
+                        >
+                          {downloadingPdfId === inv.id ? "Downloading…" : "Download PDF"}
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </>
       )}
     </div>
   );
