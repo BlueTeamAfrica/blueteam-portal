@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type RefObject } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
   addDoc,
@@ -48,9 +48,10 @@ function formatDate(ts: { toDate?: () => Date } | undefined): string {
   return d ? d.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }) : "—";
 }
 
-function badge(cls: string, label: string) {
+/** Matches client list pages: pill badges without heavy borders */
+function badgePill(cls: string, label: string) {
   return (
-    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${cls}`}>
+    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${cls}`}>
       {label}
     </span>
   );
@@ -58,19 +59,30 @@ function badge(cls: string, label: string) {
 
 function priorityBadge(p?: TicketPriority) {
   const v = (p ?? "medium").toLowerCase() as TicketPriority;
-  if (v === "urgent") return badge("bg-rose-50 text-rose-700 border-rose-200", "Urgent");
-  if (v === "high") return badge("bg-amber-50 text-amber-700 border-amber-200", "High");
-  if (v === "low") return badge("bg-slate-50 text-slate-600 border-slate-200", "Low");
-  return badge("bg-indigo-50 text-indigo-700 border-indigo-200", "Medium");
+  if (v === "urgent") return badgePill("bg-rose-100 text-rose-800", "Urgent");
+  if (v === "high") return badgePill("bg-amber-100 text-amber-800", "High");
+  if (v === "low") return badgePill("bg-slate-100 text-slate-600", "Low");
+  return badgePill("bg-indigo-100 text-indigo-800", "Medium");
 }
 
 function statusBadge(s?: TicketStatus) {
   const v = (s ?? "open").toLowerCase() as TicketStatus;
-  if (v === "resolved") return badge("bg-emerald-50 text-emerald-700 border-emerald-200", "Resolved");
-  if (v === "closed") return badge("bg-slate-50 text-slate-600 border-slate-200", "Closed");
-  if (v === "waiting_client") return badge("bg-sky-50 text-sky-700 border-sky-200", "Waiting on you");
-  if (v === "in_progress") return badge("bg-amber-50 text-amber-700 border-amber-200", "In progress");
-  return badge("bg-slate-50 text-slate-700 border-slate-200", "Open");
+  if (v === "resolved") return badgePill("bg-emerald-100 text-emerald-800", "Resolved");
+  if (v === "closed") return badgePill("bg-slate-200 text-slate-700", "Closed");
+  if (v === "waiting_client") return badgePill("bg-sky-100 text-sky-800", "Waiting on you");
+  if (v === "in_progress") return badgePill("bg-amber-100 text-amber-800", "In progress");
+  return badgePill("bg-slate-100 text-slate-700", "Open");
+}
+
+function openNewTicketFlow(
+  router: ReturnType<typeof useRouter>,
+  pathname: string,
+  setShowForm: (v: boolean) => void,
+  subjectRef: RefObject<HTMLInputElement | null>
+) {
+  setShowForm(true);
+  router.replace(`${pathname}?new=1`);
+  setTimeout(() => subjectRef.current?.focus(), 0);
 }
 
 export default function ClientSupportPage() {
@@ -276,23 +288,20 @@ export default function ClientSupportPage() {
 
   return (
     <div className="max-w-full min-w-0 space-y-4 md:space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
+      {/* Stack title + CTA until md so mobile/tablet portrait matches card layout breakpoint */}
+      <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-3">
         <div className="min-w-0">
-          <h1 className="text-[#0F172A] text-xl sm:text-2xl font-semibold break-words">Support</h1>
+          <h1 className="text-[#0F172A] text-2xl font-semibold break-words">Support</h1>
           <p className="text-sm text-slate-600 mt-1 break-words">
             Create a ticket and follow the conversation with the team.
           </p>
         </div>
         <button
           type="button"
-          onClick={() => {
-            setShowForm(true);
-            router.replace(`${pathname}?new=1`);
-            setTimeout(() => subjectRef.current?.focus(), 0);
-          }}
-          className="px-3 py-2 sm:px-4 rounded-lg bg-[#4F46E5] text-white text-sm font-medium hover:bg-indigo-600 transition-colors whitespace-nowrap w-fit"
+          onClick={() => openNewTicketFlow(router, pathname, setShowForm, subjectRef)}
+          className="w-full md:w-auto shrink-0 min-h-11 md:min-h-0 px-4 py-2.5 rounded-xl bg-[#4F46E5] text-white text-sm font-semibold hover:bg-indigo-600 transition-colors shadow-sm"
         >
-          ➕ New Ticket
+          + New Ticket
         </button>
       </div>
 
@@ -402,7 +411,81 @@ export default function ClientSupportPage() {
         </form>
       )}
 
-      <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden max-w-full">
+      {/* Mobile (viewport below md): stacked ticket cards; no table horizontal scroll */}
+      <div className="md:hidden space-y-3">
+        {loading ? (
+          <div className="rounded-2xl border border-slate-200 bg-white p-6 text-center text-sm text-slate-500">
+            Loading tickets…
+          </div>
+        ) : !hasTickets ? (
+          <div className="rounded-2xl border border-slate-200 bg-white p-8 text-center shadow-sm">
+            <p className="text-base font-medium text-slate-800">No tickets yet</p>
+            <p className="text-sm text-slate-500 mt-2 leading-relaxed">
+              Create a ticket to start a conversation with the team.
+            </p>
+            <button
+              type="button"
+              onClick={() => openNewTicketFlow(router, pathname, setShowForm, subjectRef)}
+              className="mt-5 w-full min-h-11 rounded-xl bg-[#4F46E5] px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-indigo-600 transition-colors"
+            >
+              Create your first ticket
+            </button>
+          </div>
+        ) : (
+          <ul className="space-y-3 list-none p-0 m-0">
+            {tickets.map((t) => (
+              <li key={t.id} className="min-w-0">
+                <Link
+                  href={`/client/support/${t.id}`}
+                  className="block rounded-2xl border border-slate-200 bg-white p-4 min-w-0 shadow-sm active:bg-slate-50/80 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#4F46E5] focus-visible:ring-offset-2"
+                >
+                  <div className="flex items-start justify-between gap-3 min-w-0">
+                    <div className="min-w-0 flex-1">
+                      <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Ticket</p>
+                      <p className="text-lg font-semibold text-[#0F172A] leading-snug break-words">
+                        {t.subject ?? "Untitled ticket"}
+                      </p>
+                    </div>
+                    <span className="text-slate-300 shrink-0 mt-0.5" aria-hidden>
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                      </svg>
+                    </span>
+                  </div>
+                  <div className="mt-3 flex flex-wrap items-center gap-2">
+                    {statusBadge(t.status)}
+                    {priorityBadge(t.priority)}
+                  </div>
+                  <dl className="mt-4 space-y-2 text-sm border-t border-slate-100 pt-4">
+                    <div className="flex justify-between gap-3">
+                      <dt className="text-slate-500 shrink-0">Created</dt>
+                      <dd className="font-medium text-[#0F172A] text-right tabular-nums">
+                        {formatDate(t.createdAt)}
+                      </dd>
+                    </div>
+                    <div className="flex justify-between gap-3">
+                      <dt className="text-slate-500 shrink-0">Last updated</dt>
+                      <dd className="font-medium text-[#0F172A] text-right tabular-nums">
+                        {formatDate(t.updatedAt)}
+                      </dd>
+                    </div>
+                  </dl>
+                  {t.projectName || t.serviceName ? (
+                    <p className="mt-3 text-xs text-slate-500 break-words">
+                      {t.projectName ? `Project: ${t.projectName}` : ""}
+                      {t.projectName && t.serviceName ? " · " : ""}
+                      {t.serviceName ? `Service: ${t.serviceName}` : ""}
+                    </p>
+                  ) : null}
+                </Link>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+
+      {/* Desktop md+: table layout unchanged */}
+      <div className="hidden md:block bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden max-w-full">
         <div className="w-full overflow-x-auto">
           <table className="min-w-[800px] w-full border-collapse">
             <thead>
@@ -424,11 +507,18 @@ export default function ClientSupportPage() {
               ) : !hasTickets ? (
                 <tr>
                   <td colSpan={5} className="py-10 px-4">
-                    <div className="text-center">
-                      <p className="text-sm text-slate-600">No tickets yet.</p>
-                      <p className="text-xs text-slate-400 mt-1">
+                    <div className="text-center max-w-md mx-auto">
+                      <p className="text-sm font-medium text-slate-700">No tickets yet</p>
+                      <p className="text-xs text-slate-500 mt-1">
                         Create a ticket to start a support conversation.
                       </p>
+                      <button
+                        type="button"
+                        onClick={() => openNewTicketFlow(router, pathname, setShowForm, subjectRef)}
+                        className="mt-4 inline-flex min-h-10 items-center justify-center rounded-xl bg-[#4F46E5] px-5 py-2 text-sm font-semibold text-white hover:bg-indigo-600"
+                      >
+                        Create your first ticket
+                      </button>
                     </div>
                   </td>
                 </tr>
@@ -446,7 +536,7 @@ export default function ClientSupportPage() {
                         {t.subject ?? "Untitled ticket"}
                       </Link>
                       {t.projectName || t.serviceName ? (
-                        <p className="text-xs text-slate-500 mt-1 truncate">
+                        <p className="text-xs text-slate-500 mt-1 truncate max-w-xl">
                           {t.projectName ? `Project: ${t.projectName}` : ""}
                           {t.projectName && t.serviceName ? " · " : ""}
                           {t.serviceName ? `Service: ${t.serviceName}` : ""}
