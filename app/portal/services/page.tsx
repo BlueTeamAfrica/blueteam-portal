@@ -18,6 +18,8 @@ import { useTenant } from "@/lib/tenantContext";
 import { MANAGED_SERVICE_CATEGORIES } from "@/lib/managedServiceCategories";
 import { isCanonicalClientId } from "@/lib/canonicalClientId";
 import { getManagedServiceCategoryLabel, getManagedServiceDisplayName } from "@/lib/serviceDisplayName";
+import { PORTAL_SELECT_CLASS, PORTAL_SELECT_LABEL_CLASS } from "@/lib/portalSelectStyles";
+import { SelectArrowWrap } from "@/components/portal/SelectArrowWrap";
 
 type ServiceStatus = "active" | "paused" | "pending" | "cancelled" | "retired";
 type BillingType = "none" | "one_time" | "recurring";
@@ -520,50 +522,56 @@ export default function PortalServicesPage() {
       )}
 
       <div className="mt-4 bg-white rounded-xl shadow-sm border border-slate-200 p-4 md:p-5 max-w-full">
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-          <div>
-            <label className="block text-xs font-medium text-slate-600 mb-1">Status</label>
-            <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              className="w-full px-3 py-2 rounded-lg border border-slate-200 text-[#0F172A] capitalize"
-            >
-              {statusOptions.map((o) => (
-                <option key={o.value} value={o.value}>
-                  {o.label}
-                </option>
-              ))}
-            </select>
+        <div className="flex flex-col space-y-3 sm:flex-row sm:space-y-0 sm:gap-3">
+          <div className="space-y-1 sm:flex-1 min-w-0">
+            <label className={PORTAL_SELECT_LABEL_CLASS}>Status</label>
+            <SelectArrowWrap>
+              <select
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+                className={`${PORTAL_SELECT_CLASS} capitalize`}
+              >
+                {statusOptions.map((o) => (
+                  <option key={o.value} value={o.value}>
+                    {o.label}
+                  </option>
+                ))}
+              </select>
+            </SelectArrowWrap>
           </div>
-          <div>
-            <label className="block text-xs font-medium text-slate-600 mb-1">Category</label>
-            <select
-              value={categoryFilter}
-              onChange={(e) => setCategoryFilter(e.target.value)}
-              className="w-full px-3 py-2 rounded-lg border border-slate-200 text-[#0F172A] capitalize"
-            >
-              <option value="all">All</option>
-              {MANAGED_SERVICE_CATEGORIES.map((opt) => (
-                <option key={opt.value} value={opt.value}>
-                  {opt.label}
-                </option>
-              ))}
-            </select>
+          <div className="space-y-1 sm:flex-1 min-w-0">
+            <label className={PORTAL_SELECT_LABEL_CLASS}>Category</label>
+            <SelectArrowWrap>
+              <select
+                value={categoryFilter}
+                onChange={(e) => setCategoryFilter(e.target.value)}
+                className={`${PORTAL_SELECT_CLASS} capitalize`}
+              >
+                <option value="all">All</option>
+                {MANAGED_SERVICE_CATEGORIES.map((opt) => (
+                  <option key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </option>
+                ))}
+              </select>
+            </SelectArrowWrap>
           </div>
-          <div>
-            <label className="block text-xs font-medium text-slate-600 mb-1">Client</label>
-            <select
-              value={clientFilter}
-              onChange={(e) => setClientFilter(e.target.value)}
-              className="w-full px-3 py-2 rounded-lg border border-slate-200 text-[#0F172A]"
-            >
-              <option value="all">All</option>
-              {clients.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name ?? c.email ?? c.id}
-                </option>
-              ))}
-            </select>
+          <div className="space-y-1 sm:flex-1 min-w-0">
+            <label className={PORTAL_SELECT_LABEL_CLASS}>Client</label>
+            <SelectArrowWrap>
+              <select
+                value={clientFilter}
+                onChange={(e) => setClientFilter(e.target.value)}
+                className={PORTAL_SELECT_CLASS}
+              >
+                <option value="all">All</option>
+                {clients.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name ?? c.email ?? c.id}
+                  </option>
+                ))}
+              </select>
+            </SelectArrowWrap>
           </div>
         </div>
       </div>
@@ -602,90 +610,100 @@ export default function PortalServicesPage() {
               )}
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-[#0F172A] mb-1">Client *</label>
-                  <select
-                    value={formClientId}
-                    onChange={(e) => setFormClientId(e.target.value)}
-                    required
-                    className="w-full px-3 py-2 rounded-lg border border-slate-200 text-[#0F172A]"
-                  >
-                    <option value="" disabled>
-                      Select client
-                    </option>
-                    {clients.map((c) => (
-                      <option key={c.id} value={c.id}>
-                        {c.name ?? c.email ?? c.id}
+                <div className="space-y-1">
+                  <label className={PORTAL_SELECT_LABEL_CLASS}>Client *</label>
+                  <SelectArrowWrap>
+                    <select
+                      value={formClientId}
+                      onChange={(e) => setFormClientId(e.target.value)}
+                      required
+                      className={PORTAL_SELECT_CLASS}
+                    >
+                      <option value="" disabled>
+                        Select client
                       </option>
-                    ))}
-                  </select>
-                  <p className="mt-1 text-[11px] text-slate-500 leading-snug">
+                      {clients.map((c) => (
+                        <option key={c.id} value={c.id}>
+                          {c.name ?? c.email ?? c.id}
+                        </option>
+                      ))}
+                    </select>
+                  </SelectArrowWrap>
+                  <p className="pt-1 text-[11px] text-slate-500 leading-snug">
                     Stored as <span className="font-mono text-slate-600">clientId</span> on the service. Use the same id
                     as <span className="font-mono text-slate-600">users/&lt;uid&gt;.clientId</span> for that client&apos;s
                     portal login.
                   </p>
                 </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-[#0F172A] mb-1">Service category *</label>
-                  <select
-                    value={formCategory}
-                    onChange={(e) => setFormCategory(e.target.value)}
-                    required
-                    className="w-full px-3 py-2 rounded-lg border border-slate-200 text-[#0F172A]"
-                  >
-                    {MANAGED_SERVICE_CATEGORIES.map((o) => (
-                      <option key={o.value} value={o.value}>
-                        {o.label}
-                      </option>
-                    ))}
-                  </select>
+                <div className="space-y-1">
+                  <label className={PORTAL_SELECT_LABEL_CLASS}>Service category *</label>
+                  <SelectArrowWrap>
+                    <select
+                      value={formCategory}
+                      onChange={(e) => setFormCategory(e.target.value)}
+                      required
+                      className={PORTAL_SELECT_CLASS}
+                    >
+                      {MANAGED_SERVICE_CATEGORIES.map((o) => (
+                        <option key={o.value} value={o.value}>
+                          {o.label}
+                        </option>
+                      ))}
+                    </select>
+                  </SelectArrowWrap>
                 </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-[#0F172A] mb-1">Status *</label>
-                  <select
-                    value={formStatus}
-                    onChange={(e) => setFormStatus(e.target.value)}
-                    required
-                    className="w-full px-3 py-2 rounded-lg border border-slate-200 text-[#0F172A]"
-                  >
-                    <option value="active">Active</option>
-                    <option value="pending">Pending Setup</option>
-                    <option value="paused">Paused</option>
-                    <option value="completed">Completed</option>
-                    <option value="cancelled">Cancelled</option>
-                  </select>
+                <div className="space-y-1">
+                  <label className={PORTAL_SELECT_LABEL_CLASS}>Status *</label>
+                  <SelectArrowWrap>
+                    <select
+                      value={formStatus}
+                      onChange={(e) => setFormStatus(e.target.value)}
+                      required
+                      className={PORTAL_SELECT_CLASS}
+                    >
+                      <option value="active">Active</option>
+                      <option value="pending">Pending Setup</option>
+                      <option value="paused">Paused</option>
+                      <option value="completed">Completed</option>
+                      <option value="cancelled">Cancelled</option>
+                    </select>
+                  </SelectArrowWrap>
                 </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-[#0F172A] mb-1">Project (optional)</label>
-                  <select
-                    value={formProjectId}
-                    onChange={(e) => setFormProjectId(e.target.value)}
-                    className="w-full px-3 py-2 rounded-lg border border-slate-200 text-[#0F172A]"
-                  >
-                    <option value="">None</option>
-                    {projects.map((p) => (
-                      <option key={p.id} value={p.id}>
-                        {p.name ?? p.id}
-                      </option>
-                    ))}
-                  </select>
+                <div className="space-y-1">
+                  <label className={PORTAL_SELECT_LABEL_CLASS}>Project (optional)</label>
+                  <SelectArrowWrap>
+                    <select
+                      value={formProjectId}
+                      onChange={(e) => setFormProjectId(e.target.value)}
+                      className={PORTAL_SELECT_CLASS}
+                    >
+                      <option value="">None</option>
+                      {projects.map((p) => (
+                        <option key={p.id} value={p.id}>
+                          {p.name ?? p.id}
+                        </option>
+                      ))}
+                    </select>
+                  </SelectArrowWrap>
                 </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-[#0F172A] mb-1">Billing type</label>
-                  <select
-                    value={formBillingType}
-                    onChange={(e) => setFormBillingType(e.target.value as BillingType)}
-                    className="w-full px-3 py-2 rounded-lg border border-slate-200 text-[#0F172A]"
-                  >
-                    <option value="none">Not billable</option>
-                    <option value="one_time">One-time</option>
-                    <option value="recurring">Recurring</option>
-                  </select>
-                  <p className="mt-1 text-xs text-slate-500">
+                <div className="space-y-1">
+                  <label className={PORTAL_SELECT_LABEL_CLASS}>Billing type</label>
+                  <SelectArrowWrap>
+                    <select
+                      value={formBillingType}
+                      onChange={(e) => setFormBillingType(e.target.value as BillingType)}
+                      className={PORTAL_SELECT_CLASS}
+                    >
+                      <option value="none">Not billable</option>
+                      <option value="one_time">One-time</option>
+                      <option value="recurring">Recurring</option>
+                    </select>
+                  </SelectArrowWrap>
+                  <p className="pt-1 text-xs text-slate-500">
                     Recurring services create a subscription and will be picked up by invoice generation.
                   </p>
                 </div>
@@ -722,19 +740,21 @@ export default function PortalServicesPage() {
                   />
                 </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-[#0F172A] mb-1">
+                <div className="space-y-1">
+                  <label className={PORTAL_SELECT_LABEL_CLASS}>
                     Interval {formBillingType === "recurring" ? "*" : "(n/a)"}
                   </label>
-                  <select
-                    value={formInterval}
-                    onChange={(e) => setFormInterval(e.target.value as BillingInterval)}
-                    disabled={formBillingType !== "recurring"}
-                    className="w-full px-3 py-2 rounded-lg border border-slate-200 text-[#0F172A] disabled:bg-slate-50 disabled:text-slate-400"
-                  >
-                    <option value="monthly">Monthly</option>
-                    <option value="yearly">Yearly</option>
-                  </select>
+                  <SelectArrowWrap>
+                    <select
+                      value={formInterval}
+                      onChange={(e) => setFormInterval(e.target.value as BillingInterval)}
+                      disabled={formBillingType !== "recurring"}
+                      className={PORTAL_SELECT_CLASS}
+                    >
+                      <option value="monthly">Monthly</option>
+                      <option value="yearly">Yearly</option>
+                    </select>
+                  </SelectArrowWrap>
                 </div>
 
                 <div>

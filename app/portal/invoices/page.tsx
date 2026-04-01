@@ -5,6 +5,8 @@ import { collection, getDocs, addDoc, doc, updateDoc, serverTimestamp, Timestamp
 import { auth, db } from "@/lib/firebase";
 import { useAuth } from "@/lib/authContext";
 import { useTenant } from "@/lib/tenantContext";
+import { PORTAL_SELECT_CLASS, PORTAL_SELECT_LABEL_CLASS } from "@/lib/portalSelectStyles";
+import { SelectArrowWrap } from "@/components/portal/SelectArrowWrap";
 
 type Client = { id: string; name?: string; email?: string; status?: string };
 type Invoice = {
@@ -414,21 +416,23 @@ export default function InvoicesPage() {
           className="mt-4 md:mt-6 bg-white rounded-xl shadow-sm border border-slate-200 p-4 md:p-6 space-y-4 max-w-full"
         >
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-[#0F172A] mb-1">Client *</label>
-              <select
-                value={formClientId}
-                onChange={(e) => setFormClientId(e.target.value)}
-                required
-                className="w-full px-3 py-2 rounded-lg border border-slate-200 text-[#0F172A]"
-              >
-                <option value="">Select client</option>
-                {clients.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name ?? c.email ?? c.id}
-                  </option>
-                ))}
-              </select>
+            <div className="space-y-1">
+              <label className={PORTAL_SELECT_LABEL_CLASS}>Client *</label>
+              <SelectArrowWrap>
+                <select
+                  value={formClientId}
+                  onChange={(e) => setFormClientId(e.target.value)}
+                  required
+                  className={PORTAL_SELECT_CLASS}
+                >
+                  <option value="">Select client</option>
+                  {clients.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name ?? c.email ?? c.id}
+                    </option>
+                  ))}
+                </select>
+              </SelectArrowWrap>
             </div>
             <div>
               <label className="block text-sm font-medium text-[#0F172A] mb-1">Amount *</label>
@@ -443,18 +447,20 @@ export default function InvoicesPage() {
                 className="w-full px-3 py-2 rounded-lg border border-slate-200 text-[#0F172A] placeholder:text-slate-400"
               />
             </div>
-            <div>
-              <label className="block text-sm font-medium text-[#0F172A] mb-1">Currency</label>
-              <select
-                value={formCurrency}
-                onChange={(e) => setFormCurrency(e.target.value)}
-                className="w-full px-3 py-2 rounded-lg border border-slate-200 text-[#0F172A]"
-              >
-                <option value="USD">USD</option>
-                <option value="EUR">EUR</option>
-                <option value="GBP">GBP</option>
-                <option value="RWF">RWF</option>
-              </select>
+            <div className="space-y-1">
+              <label className={PORTAL_SELECT_LABEL_CLASS}>Currency</label>
+              <SelectArrowWrap>
+                <select
+                  value={formCurrency}
+                  onChange={(e) => setFormCurrency(e.target.value)}
+                  className={PORTAL_SELECT_CLASS}
+                >
+                  <option value="USD">USD</option>
+                  <option value="EUR">EUR</option>
+                  <option value="GBP">GBP</option>
+                  <option value="RWF">RWF</option>
+                </select>
+              </SelectArrowWrap>
             </div>
             <div>
               <label className="block text-sm font-medium text-[#0F172A] mb-1">Due Date *</label>

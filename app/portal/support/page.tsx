@@ -14,6 +14,8 @@ import {
 import { db } from "@/lib/firebase";
 import { useAuth } from "@/lib/authContext";
 import { useTenant } from "@/lib/tenantContext";
+import { PORTAL_SELECT_CLASS, PORTAL_SELECT_LABEL_CLASS } from "@/lib/portalSelectStyles";
+import { SelectArrowWrap } from "@/components/portal/SelectArrowWrap";
 
 type TicketPriority = "low" | "medium" | "high" | "urgent";
 type TicketStatus = "open" | "in_progress" | "waiting_client" | "resolved" | "closed";
@@ -312,30 +314,40 @@ export default function PortalSupportPage() {
         </div>
       )}
 
-      <div className="flex flex-wrap gap-2 items-center">
-        <select
-          value={filterStatus}
-          onChange={(e) => setFilterStatus(e.target.value)}
-          className="px-3 py-2 rounded-lg border border-slate-200 bg-white text-sm text-[#0F172A] w-full sm:w-auto min-w-0"
-        >
-          <option value="all">All statuses</option>
-          <option value="open">Open</option>
-          <option value="in_progress">In progress</option>
-          <option value="waiting_client">Waiting on client</option>
-          <option value="resolved">Resolved</option>
-          <option value="closed">Closed</option>
-        </select>
-        <select
-          value={filterPriority}
-          onChange={(e) => setFilterPriority(e.target.value)}
-          className="px-3 py-2 rounded-lg border border-slate-200 bg-white text-sm text-[#0F172A] w-full sm:w-auto min-w-0"
-        >
-          <option value="all">All priorities</option>
-          <option value="low">Low</option>
-          <option value="medium">Medium</option>
-          <option value="high">High</option>
-          <option value="urgent">Urgent</option>
-        </select>
+      <div className="flex flex-col space-y-3 w-full max-w-xl">
+        <div className="space-y-1">
+          <label className={PORTAL_SELECT_LABEL_CLASS}>Ticket status</label>
+          <SelectArrowWrap>
+            <select
+              value={filterStatus}
+              onChange={(e) => setFilterStatus(e.target.value)}
+              className={PORTAL_SELECT_CLASS}
+            >
+              <option value="all">All statuses</option>
+              <option value="open">Open</option>
+              <option value="in_progress">In progress</option>
+              <option value="waiting_client">Waiting on client</option>
+              <option value="resolved">Resolved</option>
+              <option value="closed">Closed</option>
+            </select>
+          </SelectArrowWrap>
+        </div>
+        <div className="space-y-1">
+          <label className={PORTAL_SELECT_LABEL_CLASS}>Priority</label>
+          <SelectArrowWrap>
+            <select
+              value={filterPriority}
+              onChange={(e) => setFilterPriority(e.target.value)}
+              className={PORTAL_SELECT_CLASS}
+            >
+              <option value="all">All priorities</option>
+              <option value="low">Low</option>
+              <option value="medium">Medium</option>
+              <option value="high">High</option>
+              <option value="urgent">Urgent</option>
+            </select>
+          </SelectArrowWrap>
+        </div>
       </div>
 
       {showForm && (
@@ -344,96 +356,104 @@ export default function PortalSupportPage() {
           className="bg-white rounded-xl shadow-sm border border-slate-200 p-4 md:p-6 space-y-3 max-w-full"
         >
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-            <div>
-              <label className="text-xs font-medium text-slate-600">Client (optional)</label>
-              <select
-                value={clientId}
-                onChange={(e) => {
-                  setClientId(e.target.value);
-                  const c = clients.find((x) => x.id === e.target.value);
-                  setClientName(c?.name ?? "");
-                }}
-                className="mt-1 w-full min-w-0 px-3 py-2 rounded-lg border border-slate-200 text-[#0F172A] bg-white"
-              >
-                <option value="">Select client</option>
-                {clients.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name ?? c.id}
-                  </option>
-                ))}
-              </select>
+            <div className="space-y-1">
+              <label className={PORTAL_SELECT_LABEL_CLASS}>Client (optional)</label>
+              <SelectArrowWrap>
+                <select
+                  value={clientId}
+                  onChange={(e) => {
+                    setClientId(e.target.value);
+                    const c = clients.find((x) => x.id === e.target.value);
+                    setClientName(c?.name ?? "");
+                  }}
+                  className={PORTAL_SELECT_CLASS}
+                >
+                  <option value="">Select client</option>
+                  {clients.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name ?? c.id}
+                    </option>
+                  ))}
+                </select>
+              </SelectArrowWrap>
             </div>
-            <div className="md:col-span-2">
-              <label className="text-xs font-medium text-slate-600">Project (optional)</label>
-              <select
-                value={projectId}
-                onChange={(e) => {
-                  setProjectId(e.target.value);
-                  const p = projects.find((x) => x.id === e.target.value);
-                  setProjectName(p?.name ?? "");
-                  if (p?.clientId) setClientId(p.clientId);
-                  if (p?.clientName) setClientName(p.clientName);
-                }}
-                className="mt-1 w-full min-w-0 px-3 py-2 rounded-lg border border-slate-200 text-[#0F172A] bg-white"
-              >
-                <option value="">Select project</option>
-                {projects.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {(p.name ?? p.id) + (p.clientName ? ` — ${p.clientName}` : "")}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-            <div className="md:col-span-2">
-              <label className="text-xs font-medium text-slate-600">Related service (optional)</label>
-              <select
-                value={serviceId}
-                onChange={(e) => {
-                  setServiceId(e.target.value);
-                  const s = services.find((x) => x.id === e.target.value);
-                  setServiceName(s?.name ?? "");
-                  if (s?.clientId) setClientId(s.clientId);
-                  if (s?.clientName) setClientName(s.clientName);
-                  if (s?.projectId) setProjectId(s.projectId);
-                  if (s?.projectName) setProjectName(s.projectName);
-                }}
-                className="mt-1 w-full min-w-0 px-3 py-2 rounded-lg border border-slate-200 text-[#0F172A] bg-white"
-              >
-                <option value="">Select service</option>
-                {services.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {(s.name ?? s.id) + (s.clientName ? ` — ${s.clientName}` : "")}
-                  </option>
-                ))}
-              </select>
+            <div className="space-y-1 md:col-span-2">
+              <label className={PORTAL_SELECT_LABEL_CLASS}>Project (optional)</label>
+              <SelectArrowWrap>
+                <select
+                  value={projectId}
+                  onChange={(e) => {
+                    setProjectId(e.target.value);
+                    const p = projects.find((x) => x.id === e.target.value);
+                    setProjectName(p?.name ?? "");
+                    if (p?.clientId) setClientId(p.clientId);
+                    if (p?.clientName) setClientName(p.clientName);
+                  }}
+                  className={PORTAL_SELECT_CLASS}
+                >
+                  <option value="">Select project</option>
+                  {projects.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {(p.name ?? p.id) + (p.clientName ? ` — ${p.clientName}` : "")}
+                    </option>
+                  ))}
+                </select>
+              </SelectArrowWrap>
             </div>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-            <div className="md:col-span-2">
-              <label className="text-xs font-medium text-slate-600">Subject</label>
+            <div className="space-y-1 md:col-span-2">
+              <label className={PORTAL_SELECT_LABEL_CLASS}>Related service (optional)</label>
+              <SelectArrowWrap>
+                <select
+                  value={serviceId}
+                  onChange={(e) => {
+                    setServiceId(e.target.value);
+                    const s = services.find((x) => x.id === e.target.value);
+                    setServiceName(s?.name ?? "");
+                    if (s?.clientId) setClientId(s.clientId);
+                    if (s?.clientName) setClientName(s.clientName);
+                    if (s?.projectId) setProjectId(s.projectId);
+                    if (s?.projectName) setProjectName(s.projectName);
+                  }}
+                  className={PORTAL_SELECT_CLASS}
+                >
+                  <option value="">Select service</option>
+                  {services.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {(s.name ?? s.id) + (s.clientName ? ` — ${s.clientName}` : "")}
+                    </option>
+                  ))}
+                </select>
+              </SelectArrowWrap>
+            </div>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <div className="md:col-span-2 space-y-1">
+              <label className={PORTAL_SELECT_LABEL_CLASS}>Subject</label>
               <input
                 ref={subjectRef}
                 value={subject}
                 onChange={(e) => setSubject(e.target.value)}
-                className="mt-1 w-full min-w-0 px-3 py-2 rounded-lg border border-slate-200 text-[#0F172A]"
+                className="w-full h-10 px-3 rounded-lg border border-gray-300 text-sm text-[#0F172A] focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
                 placeholder="e.g. Invoice PDF download not working"
                 required
               />
             </div>
-            <div>
-              <label className="text-xs font-medium text-slate-600">Priority</label>
-              <select
-                value={priority}
-                onChange={(e) => setPriority(e.target.value as TicketPriority)}
-                className="mt-1 w-full min-w-0 px-3 py-2 rounded-lg border border-slate-200 text-[#0F172A]"
-              >
-                <option value="low">Low</option>
-                <option value="medium">Medium</option>
-                <option value="high">High</option>
-                <option value="urgent">Urgent</option>
-              </select>
+            <div className="space-y-1">
+              <label className={PORTAL_SELECT_LABEL_CLASS}>Priority</label>
+              <SelectArrowWrap>
+                <select
+                  value={priority}
+                  onChange={(e) => setPriority(e.target.value as TicketPriority)}
+                  className={PORTAL_SELECT_CLASS}
+                >
+                  <option value="low">Low</option>
+                  <option value="medium">Medium</option>
+                  <option value="high">High</option>
+                  <option value="urgent">Urgent</option>
+                </select>
+              </SelectArrowWrap>
             </div>
           </div>
           <div>

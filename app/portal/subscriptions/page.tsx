@@ -24,6 +24,8 @@ async function updateSubscriptionStatus(
 }
 import { useAuth } from "@/lib/authContext";
 import { useTenant } from "@/lib/tenantContext";
+import { PORTAL_SELECT_CLASS, PORTAL_SELECT_LABEL_CLASS } from "@/lib/portalSelectStyles";
+import { SelectArrowWrap } from "@/components/portal/SelectArrowWrap";
 
 type Client = { id: string; name?: string; email?: string; status?: string };
 type Subscription = {
@@ -238,16 +240,18 @@ export default function SubscriptionsPage() {
                 className="w-full px-3 py-2 rounded-lg border border-slate-200 text-[#0F172A] placeholder:text-slate-400"
               />
             </div>
-            <div>
-              <label className="block text-sm font-medium text-[#0F172A] mb-1">Interval *</label>
-              <select
-                value={formInterval}
-                onChange={(e) => setFormInterval(e.target.value as "monthly" | "yearly")}
-                className="w-full px-3 py-2 rounded-lg border border-slate-200 text-[#0F172A]"
-              >
-                <option value="monthly">Monthly</option>
-                <option value="yearly">Yearly</option>
-              </select>
+            <div className="space-y-1">
+              <label className={PORTAL_SELECT_LABEL_CLASS}>Interval *</label>
+              <SelectArrowWrap>
+                <select
+                  value={formInterval}
+                  onChange={(e) => setFormInterval(e.target.value as "monthly" | "yearly")}
+                  className={PORTAL_SELECT_CLASS}
+                >
+                  <option value="monthly">Monthly</option>
+                  <option value="yearly">Yearly</option>
+                </select>
+              </SelectArrowWrap>
             </div>
             <div>
               <label className="block text-sm font-medium text-[#0F172A] mb-1">Start Date *</label>

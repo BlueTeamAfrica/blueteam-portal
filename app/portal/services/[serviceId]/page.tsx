@@ -18,6 +18,8 @@ import { useAuth } from "@/lib/authContext";
 import { useTenant } from "@/lib/tenantContext";
 import { isCanonicalClientId } from "@/lib/canonicalClientId";
 import { getManagedServiceCategoryLabel, getManagedServiceDisplayName } from "@/lib/serviceDisplayName";
+import { PORTAL_SELECT_CLASS, PORTAL_SELECT_LABEL_CLASS } from "@/lib/portalSelectStyles";
+import { SelectArrowWrap } from "@/components/portal/SelectArrowWrap";
 
 type BillingType = "none" | "one_time" | "recurring";
 type BillingInterval = "monthly" | "yearly";
@@ -716,23 +718,25 @@ export default function PortalServiceDetailPage() {
           {tenantClients.length === 0 ? (
             <p className="mt-3 text-xs text-amber-800">Add a client under Portal → Clients, then return here to link.</p>
           ) : (
-            <form onSubmit={handleSaveClientLinkage} className="mt-4 flex flex-col sm:flex-row sm:items-end gap-3">
-              <div className="flex-1 min-w-0">
-                <label htmlFor="repair-client" className="block text-xs font-medium text-amber-950 mb-1">
+            <form onSubmit={handleSaveClientLinkage} className="mt-4 flex flex-col space-y-3 sm:flex-row sm:space-y-0 sm:items-end sm:gap-3">
+              <div className="space-y-1 flex-1 min-w-0">
+                <label htmlFor="repair-client" className={PORTAL_SELECT_LABEL_CLASS}>
                   Link to client
                 </label>
-                <select
-                  id="repair-client"
-                  value={repairClientId}
-                  onChange={(e) => setRepairClientId(e.target.value)}
-                  className="w-full px-3 py-2 rounded-lg border border-amber-200/80 bg-white text-[#0F172A] text-sm"
-                >
-                  {tenantClients.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.name ?? c.email ?? c.id}
-                    </option>
-                  ))}
-                </select>
+                <SelectArrowWrap>
+                  <select
+                    id="repair-client"
+                    value={repairClientId}
+                    onChange={(e) => setRepairClientId(e.target.value)}
+                    className={PORTAL_SELECT_CLASS}
+                  >
+                    {tenantClients.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.name ?? c.email ?? c.id}
+                      </option>
+                    ))}
+                  </select>
+                </SelectArrowWrap>
               </div>
               <button
                 type="submit"
@@ -855,19 +859,21 @@ export default function PortalServiceDetailPage() {
 
                 <div className="bg-white rounded-xl border border-slate-200 p-4">
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div className="sm:col-span-2">
-                      <label className="block text-xs font-medium text-slate-600">Health status</label>
-                      <select
-                        value={healthStatus}
-                        onChange={(e) => setHealthStatus(e.target.value)}
-                        className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-[#0F172A] focus:outline-none focus:ring-2 focus:ring-indigo-200"
-                      >
-                        <option value="healthy">Healthy</option>
-                        <option value="warning">Warning</option>
-                        <option value="critical">Critical</option>
-                        <option value="waiting_client">Waiting on Client</option>
-                        <option value="paused">Paused</option>
-                      </select>
+                    <div className="sm:col-span-2 space-y-1">
+                      <label className={PORTAL_SELECT_LABEL_CLASS}>Health status</label>
+                      <SelectArrowWrap>
+                        <select
+                          value={healthStatus}
+                          onChange={(e) => setHealthStatus(e.target.value)}
+                          className={PORTAL_SELECT_CLASS}
+                        >
+                          <option value="healthy">Healthy</option>
+                          <option value="warning">Warning</option>
+                          <option value="critical">Critical</option>
+                          <option value="waiting_client">Waiting on Client</option>
+                          <option value="paused">Paused</option>
+                        </select>
+                      </SelectArrowWrap>
                     </div>
 
                     <div className="sm:col-span-2">
@@ -991,17 +997,19 @@ export default function PortalServiceDetailPage() {
 
                 <div className="bg-white rounded-xl border border-slate-200 p-4">
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-xs font-medium text-slate-600">Billing type</label>
-                      <select
-                        value={billingType}
-                        onChange={(e) => setBillingType(e.target.value as BillingType)}
-                        className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-[#0F172A] focus:outline-none focus:ring-2 focus:ring-indigo-200"
-                      >
-                        <option value="none">Not billable</option>
-                        <option value="one_time">One-time</option>
-                        <option value="recurring">Recurring</option>
-                      </select>
+                    <div className="space-y-1">
+                      <label className={PORTAL_SELECT_LABEL_CLASS}>Billing type</label>
+                      <SelectArrowWrap>
+                        <select
+                          value={billingType}
+                          onChange={(e) => setBillingType(e.target.value as BillingType)}
+                          className={PORTAL_SELECT_CLASS}
+                        >
+                          <option value="none">Not billable</option>
+                          <option value="one_time">One-time</option>
+                          <option value="recurring">Recurring</option>
+                        </select>
+                      </SelectArrowWrap>
                     </div>
 
                     <div>
@@ -1036,19 +1044,21 @@ export default function PortalServiceDetailPage() {
                       />
                     </div>
 
-                    <div>
-                      <label className="block text-xs font-medium text-slate-600">
+                    <div className="space-y-1">
+                      <label className={PORTAL_SELECT_LABEL_CLASS}>
                         Interval {billingType === "recurring" ? "*" : "(n/a)"}
                       </label>
-                      <select
-                        value={billingInterval}
-                        onChange={(e) => setBillingInterval(e.target.value as BillingInterval)}
-                        disabled={billingType !== "recurring"}
-                        className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-[#0F172A] focus:outline-none focus:ring-2 focus:ring-indigo-200 disabled:bg-slate-50 disabled:text-slate-400"
-                      >
-                        <option value="monthly">Monthly</option>
-                        <option value="yearly">Yearly</option>
-                      </select>
+                      <SelectArrowWrap>
+                        <select
+                          value={billingInterval}
+                          onChange={(e) => setBillingInterval(e.target.value as BillingInterval)}
+                          disabled={billingType !== "recurring"}
+                          className={PORTAL_SELECT_CLASS}
+                        >
+                          <option value="monthly">Monthly</option>
+                          <option value="yearly">Yearly</option>
+                        </select>
+                      </SelectArrowWrap>
                     </div>
 
                     <div>

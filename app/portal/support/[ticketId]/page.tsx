@@ -17,6 +17,8 @@ import {
 import { db } from "@/lib/firebase";
 import { useAuth } from "@/lib/authContext";
 import { useTenant } from "@/lib/tenantContext";
+import { PORTAL_SELECT_CLASS, PORTAL_SELECT_LABEL_CLASS } from "@/lib/portalSelectStyles";
+import { SelectArrowWrap } from "@/components/portal/SelectArrowWrap";
 
 type TicketPriority = "low" | "medium" | "high" | "urgent";
 type TicketStatus = "open" | "in_progress" | "waiting_client" | "resolved" | "closed";
@@ -225,19 +227,22 @@ export default function PortalTicketDetailPage() {
             </p>
           </div>
 
-          <div className="flex flex-wrap gap-2 shrink-0">
-            <select
-              value={ticket.status ?? "open"}
-              onChange={(e) => handleStatusChange(e.target.value as TicketStatus)}
-              disabled={statusUpdating}
-              className="px-3 py-2 rounded-lg border border-slate-200 bg-white text-sm text-[#0F172A] disabled:opacity-60"
-            >
-              <option value="open">Open</option>
-              <option value="in_progress">In progress</option>
-              <option value="waiting_client">Waiting on client</option>
-              <option value="resolved">Resolved</option>
-              <option value="closed">Closed</option>
-            </select>
+          <div className="flex flex-col space-y-1 w-full sm:w-auto sm:min-w-[200px] shrink-0">
+            <label className={PORTAL_SELECT_LABEL_CLASS}>Status</label>
+            <SelectArrowWrap>
+              <select
+                value={ticket.status ?? "open"}
+                onChange={(e) => handleStatusChange(e.target.value as TicketStatus)}
+                disabled={statusUpdating}
+                className={`${PORTAL_SELECT_CLASS} disabled:opacity-60`}
+              >
+                <option value="open">Open</option>
+                <option value="in_progress">In progress</option>
+                <option value="waiting_client">Waiting on client</option>
+                <option value="resolved">Resolved</option>
+                <option value="closed">Closed</option>
+              </select>
+            </SelectArrowWrap>
           </div>
         </div>
 

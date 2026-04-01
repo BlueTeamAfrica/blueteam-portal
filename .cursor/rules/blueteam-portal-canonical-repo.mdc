@@ -1,0 +1,17 @@
+---
+description: This workspace is the canonical BlueTeamAfrica/blueteam-portal repo — push here
+alwaysApply: true
+---
+
+# Canonical portal repository
+
+This folder is the **standalone** Next.js app for **[BlueTeamAfrica/blueteam-portal](https://github.com/BlueTeamAfrica/blueteam-portal.git)**. **`origin`** must stay `https://github.com/BlueTeamAfrica/blueteam-portal.git` (or the SSH equivalent).
+
+## After portal changes
+
+1. Run checks from this directory (e.g. `npm run build` when appropriate).
+2. **Commit and push to `origin main`** (or the branch the user names). Do not satisfy “portal is done” with a push only to the `blueteam` monorepo unless the user explicitly asks.
+
+## Monorepo copy
+
+If edits were made under `blueteamafrica/blueteam-portal/` in another workspace, sync into this clone (excluding `.git`, `node_modules`, `.next`, `.env.local`) before committing here.
