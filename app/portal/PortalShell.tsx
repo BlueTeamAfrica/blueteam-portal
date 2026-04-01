@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
 import { signOut } from "firebase/auth";
@@ -44,17 +44,32 @@ function NavLinks({
   );
 }
 
+const DRAWER_WIDTH_CLASS = "w-[82vw] max-w-[320px]";
+
 export default function PortalShell({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
   const { tenant } = useTenant();
   const [drawerOpen, setDrawerOpen] = useState(false);
 
+  useEffect(() => {
+    setDrawerOpen(false);
+  }, [pathname]);
+
+  useEffect(() => {
+    if (!drawerOpen) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = prev;
+    };
+  }, [drawerOpen]);
+
   return (
     <div className="min-h-screen bg-[#F8FAFC] flex flex-col md:flex-row overflow-x-hidden">
       {/* Mobile top bar */}
-      <header className="md:hidden h-14 bg-white border-b border-slate-200 flex items-center justify-between px-4 shrink-0">
-        <div className="flex items-center gap-3">
+      <header className="md:hidden h-14 bg-white border-b border-slate-200 flex items-center justify-between px-4 shrink-0 min-w-0">
+        <div className="flex items-center gap-3 min-w-0">
           <button
             type="button"
             onClick={() => setDrawerOpen(true)}
@@ -85,12 +100,13 @@ export default function PortalShell({ children }: { children: React.ReactNode })
             aria-hidden="true"
           />
           <aside
-            className="fixed inset-y-0 left-0 w-64 max-w-[85vw] bg-white border-r border-slate-200 z-50 md:hidden flex flex-col shadow-xl"
+            className={`fixed inset-y-0 left-0 ${DRAWER_WIDTH_CLASS} bg-white border-r border-slate-200 z-50 md:hidden flex flex-col shadow-xl`}
             role="dialog"
+            aria-modal="true"
             aria-label="Navigation menu"
           >
-            <div className="p-4 border-b border-slate-200 flex items-center justify-between">
-              <h2 className="text-[#0F172A] font-semibold">Blue Team Portal</h2>
+            <div className="p-4 border-b border-slate-200 flex items-center justify-between gap-2 min-w-0">
+              <h2 className="text-[#0F172A] font-semibold truncate">Blue Team Portal</h2>
               <button
                 type="button"
                 onClick={() => setDrawerOpen(false)}
@@ -102,7 +118,7 @@ export default function PortalShell({ children }: { children: React.ReactNode })
                 </svg>
               </button>
             </div>
-            <nav className="p-3 space-y-1 overflow-auto">
+            <nav className="p-3 space-y-1 overflow-y-auto min-h-0 flex-1">
               <NavLinks pathname={pathname} onNavigate={() => setDrawerOpen(false)} />
             </nav>
           </aside>

@@ -128,9 +128,9 @@ export default function ClientServicesPage() {
 
   return (
     <div className="max-w-full min-w-0">
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <h1 className="text-[#0F172A] text-2xl font-semibold">Services</h1>
+      <div className="flex items-start justify-between gap-3 min-w-0">
+        <div className="min-w-0">
+          <h1 className="text-[#0F172A] text-2xl font-semibold break-words">Services</h1>
           <p className="text-slate-500 text-sm mt-1 break-words">
             The managed services Blueteam operates for your account.
           </p>
@@ -166,14 +166,16 @@ export default function ClientServicesPage() {
                 onClick={() => router.push(`/client/services/${s.id}`)}
                 className="w-full text-left rounded-xl border border-slate-200 bg-white p-4 shadow-sm active:bg-slate-50"
               >
-                <div className="flex items-start justify-between gap-2">
+                <div className="flex items-start justify-between gap-2 min-w-0">
                   <div className="min-w-0">
                     <p className="font-semibold text-[#0F172A] break-words">{s.displayName}</p>
                     {s.categoryDisplay ? (
-                      <p className="text-xs text-slate-500 mt-0.5">{s.categoryDisplay}</p>
+                      <p className="text-xs text-slate-500 mt-0.5 break-words">{s.categoryDisplay}</p>
                     ) : null}
                   </div>
-                  <StatusBadge status={s.status} />
+                  <div className="shrink-0">
+                    <StatusBadge status={s.status} />
+                  </div>
                 </div>
                 <dl className="mt-3 space-y-1.5 text-sm text-slate-600">
                   <div className="flex justify-between gap-2">

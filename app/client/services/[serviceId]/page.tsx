@@ -242,8 +242,8 @@ export default function ClientServiceDetailPage() {
   if (!service) return <p className="text-[#0F172A]">Service not found.</p>;
 
   return (
-    <div className="max-w-full min-w-0">
-      <div className="flex items-center justify-between gap-3 flex-wrap">
+    <div className="max-w-full min-w-0 overflow-x-hidden">
+      <div className="flex items-center justify-between gap-3 flex-wrap min-w-0">
         <Link href="/client/services" className="text-indigo-600 hover:underline text-sm">
           ← Back to services
         </Link>
@@ -271,7 +271,7 @@ export default function ClientServiceDetailPage() {
         </div>
       )}
 
-      <div className="mt-4 bg-white rounded-2xl shadow-sm border border-slate-200 p-5 md:p-6 max-w-full">
+      <div className="mt-4 bg-white rounded-2xl shadow-sm border border-slate-200 p-5 md:p-6 max-w-full min-w-0">
         <h1 className="text-[#0F172A] text-2xl font-semibold break-words">{service.name ?? "Service"}</h1>
         <div className="mt-2 flex flex-wrap gap-2">
           <StatusBadge status={service.status} />
@@ -288,43 +288,43 @@ export default function ClientServiceDetailPage() {
           {service.description ?? "No description yet."}
         </p>
         <div className="mt-5 grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div className="bg-slate-50 rounded-xl p-4 border border-slate-100">
+          <div className="bg-slate-50 rounded-xl p-4 border border-slate-100 min-w-0">
             <p className="text-xs text-slate-500">Start date</p>
             <p className="mt-1 text-[#0F172A] font-medium break-words">{formatDate(service.startDate ?? null)}</p>
           </div>
-          <div className="bg-slate-50 rounded-xl p-4 border border-slate-100">
+          <div className="bg-slate-50 rounded-xl p-4 border border-slate-100 min-w-0">
             <p className="text-xs text-slate-500">Renewal date</p>
             <p className="mt-1 text-[#0F172A] font-medium">{formatDate(service.renewalDate)}</p>
           </div>
-          <div className="bg-slate-50 rounded-xl p-4 border border-slate-100">
+          <div className="bg-slate-50 rounded-xl p-4 border border-slate-100 min-w-0">
             <p className="text-xs text-slate-500">Linked project</p>
             <p className="mt-1 text-[#0F172A] font-medium break-words">{service.projectName ?? service.projectId ?? "No linked project"}</p>
           </div>
-          <div className="bg-slate-50 rounded-xl p-4 border border-slate-100 sm:col-span-2">
+          <div className="bg-slate-50 rounded-xl p-4 border border-slate-100 sm:col-span-2 min-w-0">
             <p className="text-xs text-slate-500">Notes</p>
             <p className="mt-1 text-sm text-[#0F172A] whitespace-pre-wrap break-words">{service.notes ?? "No notes yet."}</p>
           </div>
-          <div className="bg-slate-50 rounded-xl p-4 border border-slate-100">
+          <div className="bg-slate-50 rounded-xl p-4 border border-slate-100 min-w-0">
             <p className="text-xs text-slate-500">Created</p>
             <p className="mt-1 text-[#0F172A]">{formatDateTime(service.createdAt)}</p>
           </div>
-          <div className="bg-slate-50 rounded-xl p-4 border border-slate-100">
+          <div className="bg-slate-50 rounded-xl p-4 border border-slate-100 min-w-0">
             <p className="text-xs text-slate-500">Updated</p>
             <p className="mt-1 text-[#0F172A]">{formatDateTime(service.updatedAt)}</p>
           </div>
         </div>
       </div>
 
-      <div className="mt-4 bg-white rounded-2xl shadow-sm border border-slate-200 p-5 md:p-6 max-w-full">
-        <h2 className="text-[#0F172A] font-semibold">Billing</h2>
+      <div className="mt-4 bg-white rounded-2xl shadow-sm border border-slate-200 p-5 md:p-6 max-w-full min-w-0">
+        <h2 className="text-[#0F172A] font-semibold break-words">Billing</h2>
         <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div className="bg-slate-50 rounded-xl p-4 border border-slate-100">
+          <div className="bg-slate-50 rounded-xl p-4 border border-slate-100 min-w-0">
             <p className="text-xs text-slate-500">Billing type</p>
             <p className="mt-1 text-sm text-[#0F172A] font-medium break-words">
               {getBillingTypeLabel(service.billingType)}
             </p>
           </div>
-          <div className="bg-slate-50 rounded-xl p-4 border border-slate-100">
+          <div className="bg-slate-50 rounded-xl p-4 border border-slate-100 min-w-0">
             <p className="text-xs text-slate-500">Price</p>
             <p className="mt-1 text-sm text-[#0F172A] font-medium break-words">
               {typeof service.price === "number"
@@ -332,21 +332,21 @@ export default function ClientServiceDetailPage() {
                 : "—"}
             </p>
           </div>
-          <div className="bg-slate-50 rounded-xl p-4 border border-slate-100">
+          <div className="bg-slate-50 rounded-xl p-4 border border-slate-100 min-w-0">
             <p className="text-xs text-slate-500">Currency</p>
             <p className="mt-1 text-sm text-[#0F172A] font-medium break-words">{service.currency ?? "—"}</p>
           </div>
-          <div className="bg-slate-50 rounded-xl p-4 border border-slate-100">
+          <div className="bg-slate-50 rounded-xl p-4 border border-slate-100 min-w-0">
             <p className="text-xs text-slate-500">Interval</p>
             <p className="mt-1 text-sm text-[#0F172A] font-medium break-words">{service.interval ?? "—"}</p>
           </div>
-          <div className="bg-slate-50 rounded-xl p-4 border border-slate-100">
+          <div className="bg-slate-50 rounded-xl p-4 border border-slate-100 min-w-0">
             <p className="text-xs text-slate-500">Next billing date</p>
             <p className="mt-1 text-sm text-[#0F172A] font-medium break-words">
               {formatDate(service.nextBillingDate ?? null)}
             </p>
           </div>
-          <div className="bg-slate-50 rounded-xl p-4 border border-slate-100">
+          <div className="bg-slate-50 rounded-xl p-4 border border-slate-100 min-w-0">
             <p className="text-xs text-slate-500">Subscription status</p>
             <p className="mt-1 text-sm text-[#0F172A] font-medium break-words">{subStatus ?? "—"}</p>
           </div>
@@ -356,13 +356,13 @@ export default function ClientServiceDetailPage() {
         </p>
       </div>
 
-      <div className="mt-4 bg-white rounded-2xl shadow-sm border border-slate-200 p-5 md:p-6 max-w-full overflow-hidden">
-        <h2 className="text-[#0F172A] font-semibold">Service health</h2>
+      <div className="mt-4 bg-white rounded-2xl shadow-sm border border-slate-200 p-5 md:p-6 max-w-full min-w-0 overflow-hidden">
+        <h2 className="text-[#0F172A] font-semibold break-words">Service health</h2>
         <p className="mt-1 text-xs text-slate-500 max-w-2xl">
           This is how Blueteam currently sees this service: status, what we are doing next, and any important notes. Contact us if something does not match what you expect.
         </p>
 
-        <div className="mt-4 bg-slate-50 rounded-xl p-4 sm:p-5 border border-slate-100">
+        <div className="mt-4 bg-slate-50 rounded-xl p-4 sm:p-5 border border-slate-100 min-w-0">
           <div className="flex flex-wrap items-center gap-2">
             <span className="text-xs font-medium text-slate-500 uppercase tracking-wide">Status</span>
             <HealthBadge health={service.health} />
@@ -376,14 +376,14 @@ export default function ClientServiceDetailPage() {
           </div>
 
           <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div className="bg-white/80 rounded-xl p-4 border border-slate-100/80">
+            <div className="bg-white/80 rounded-xl p-4 border border-slate-100/80 min-w-0">
               <p className="text-xs text-slate-500">Last checked</p>
               <p className="mt-1 text-sm text-[#0F172A] font-medium break-words">
                 {formatDateTime(service.lastCheckedAt ?? service.updatedAt ?? service.createdAt)}
               </p>
             </div>
 
-            <div className="bg-white/80 rounded-xl p-4 border border-slate-100/80">
+            <div className="bg-white/80 rounded-xl p-4 border border-slate-100/80 min-w-0">
               <p className="text-xs text-slate-500">Next action</p>
               <p className="mt-1 text-sm text-[#0F172A] font-medium break-words">{service.nextAction ?? "—"}</p>
               <p className="text-xs text-slate-500 mt-2">
