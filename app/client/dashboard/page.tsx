@@ -177,6 +177,7 @@ export default function ClientDashboardPage() {
   const [totalInvoices, setTotalInvoices] = useState<number>(0);
   const [recentActivity, setRecentActivity] = useState<RecentActivityItem[]>([]);
   const [clientServicesHealth, setClientServicesHealth] = useState<ClientServicesHealth | null>(null);
+  const [waitingTicketsCount, setWaitingTicketsCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [loadFailure, setLoadFailure] = useState<LoadFailureDetail | null>(null);
@@ -419,6 +420,23 @@ export default function ClientDashboardPage() {
         totalServices: sortRows.length,
       });
 
+      try {
+        const waitingSnap = await getDocs(
+          query(
+            collection(db, "tenants", tid, "tickets"),
+            where("clientId", "==", cid),
+            where("status", "==", "waiting_client")
+          )
+        );
+        setWaitingTicketsCount(waitingSnap.size);
+      } catch (ticketsErr) {
+        console.warn("CLIENT_DASHBOARD: waiting_client tickets query failed (non-blocking)", {
+          ...ctx,
+          error: ticketsErr,
+        });
+        setWaitingTicketsCount(0);
+      }
+
       let recentInvoiceDocs: QueryDocumentSnapshot[];
       try {
         console.log("CLIENT_DASHBOARD: running recent activity invoices query", {
@@ -653,10 +671,91 @@ export default function ClientDashboardPage() {
     );
   }
 
+  const waitingServicesCount = clientServicesHealth?.counts.waiting_client ?? 0;
+  const actionRows: { id: string; count: number; message: string; href: string; cta: string }[] = [];
+  if (unpaidInvoices > 0) {
+    actionRows.push({
+      id: "invoices",
+      count: unpaidInvoices,
+      message: `${unpaidInvoices} unpaid invoice${unpaidInvoices === 1 ? "" : "s"}`,
+      href: "/client/invoices",
+      cta: "View invoices",
+    });
+  }
+  if (waitingServicesCount > 0) {
+    actionRows.push({
+      id: "services",
+      count: waitingServicesCount,
+      message:
+        waitingServicesCount === 1
+          ? "1 service needs your input"
+          : `${waitingServicesCount} services need your input`,
+      href: "/client/services",
+      cta: "View services",
+    });
+  }
+  if (waitingTicketsCount > 0) {
+    actionRows.push({
+      id: "tickets",
+      count: waitingTicketsCount,
+      message:
+        waitingTicketsCount === 1
+          ? "1 ticket awaiting your reply"
+          : `${waitingTicketsCount} tickets awaiting your reply`,
+      href: "/client/support",
+      cta: "Open support",
+    });
+  }
+
   return (
     <div className="min-w-0 max-w-full overflow-x-hidden">
       <h1 className="text-[#0F172A] text-2xl font-semibold">Dashboard</h1>
       <p className="text-slate-600 mt-1 break-words">{clientName}</p>
+
+      <section
+        className="mt-6 rounded-2xl border border-amber-200/80 bg-gradient-to-b from-amber-50/90 to-white shadow-sm overflow-hidden max-w-full min-w-0"
+        aria-labelledby="action-required-heading"
+      >
+        <div className="px-4 py-3 sm:px-5 border-b border-amber-200/60 bg-amber-50/80">
+          <h2 id="action-required-heading" className="text-[#0F172A] text-base font-semibold">
+            Action Required
+          </h2>
+        </div>
+        <div className="p-4 sm:p-5">
+          {actionRows.length === 0 ? (
+            <p className="text-sm text-slate-600 text-center sm:text-left py-2">
+              Nothing needs your attention right now
+            </p>
+          ) : (
+            <ul className="space-y-3 list-none p-0 m-0">
+              {actionRows.map((row) => (
+                <li key={row.id} className="min-w-0">
+                  <Link
+                    href={row.href}
+                    aria-label={`${row.message}. ${row.cta}`}
+                    className="flex flex-col gap-3 rounded-xl border border-slate-200/90 bg-white px-4 py-3.5 min-h-[3rem] shadow-sm hover:border-indigo-200 hover:bg-indigo-50/40 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#4F46E5] focus-visible:ring-offset-2 sm:flex-row sm:items-center sm:justify-between sm:gap-4"
+                  >
+                    <div className="flex items-start gap-3 min-w-0 flex-1">
+                      <span
+                        className="shrink-0 flex h-10 min-w-[2.5rem] items-center justify-center rounded-lg bg-amber-100 text-amber-950 text-base font-bold tabular-nums px-2"
+                        aria-hidden
+                      >
+                        {row.count}
+                      </span>
+                      <span className="text-[#0F172A] font-medium text-sm sm:text-base leading-snug break-words min-w-0 pt-1.5 sm:pt-1">
+                        {row.message}
+                      </span>
+                    </div>
+                    <span className="w-full sm:w-auto shrink-0 inline-flex items-center justify-center min-h-11 rounded-xl bg-[#4F46E5] px-4 py-2.5 text-sm font-semibold text-white sm:min-h-0 sm:bg-transparent sm:text-indigo-600 sm:px-3 sm:py-2 sm:font-semibold sm:hover:underline">
+                      {row.cta}
+                    </span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </section>
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-6">
         <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-5 min-w-0">
