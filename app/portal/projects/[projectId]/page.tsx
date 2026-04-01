@@ -194,30 +194,8 @@ export default function ProjectDetailPage() {
               <p className="text-xs text-slate-400 mt-2">Last updated: {formatDateTime(lastUpdated)}</p>
             )}
           </div>
-          {/* Quick actions */}
-          <div className="flex flex-wrap gap-2 shrink-0">
-            <button
-              type="button"
-              disabled
-              className="px-3 py-2 rounded-lg border border-dashed border-slate-300 text-slate-400 text-sm font-medium bg-slate-50 cursor-not-allowed"
-              title="Edit project is coming soon."
-            >
-              Edit project
-            </button>
-            <button
-              type="button"
-              disabled
-              className="px-3 py-2 rounded-lg border border-dashed border-slate-300 text-slate-400 text-sm font-medium bg-slate-50 cursor-not-allowed"
-              title="Status updates are coming soon."
-            >
-              Mark status
-            </button>
-            <Link
-              href={`/portal/clients${project.clientId ? `?highlight=${project.clientId}` : ""}`}
-              className="px-3 py-2 rounded-lg border border-slate-300 text-slate-800 text-sm font-medium hover:bg-slate-50"
-            >
-              Go to client
-            </Link>
+          {/* Quick actions: primary / secondary / muted */}
+          <div className="flex flex-col sm:flex-row flex-wrap gap-2 shrink-0 w-full sm:w-auto">
             <Link
               href={`/portal/support?${new URLSearchParams({
                 new: "1",
@@ -227,16 +205,38 @@ export default function ProjectDetailPage() {
                 clientName: safeProject.clientName ?? "",
                 subject: safeProject.name ? `Project: ${safeProject.name} — Support request` : "Project support request",
               }).toString()}`}
-              className="px-3 py-2 rounded-lg border border-slate-300 text-slate-800 text-sm font-medium hover:bg-slate-50"
+              className="inline-flex justify-center items-center px-4 py-2.5 rounded-lg bg-indigo-600 text-white text-sm font-semibold hover:bg-indigo-500 transition-colors shadow-sm"
             >
               Open support ticket
             </Link>
             <Link
+              href={`/portal/clients${safeProject.clientId ? `?highlight=${safeProject.clientId}` : ""}`}
+              className="inline-flex justify-center items-center px-4 py-2.5 rounded-lg border border-slate-200 bg-white text-[#0F172A] text-sm font-medium hover:bg-slate-50 transition-colors"
+            >
+              Go to client
+            </Link>
+            <Link
               href="/portal/invoices"
-              className="px-3 py-2 rounded-lg border border-slate-300 text-slate-800 text-sm font-medium hover:bg-slate-50"
+              className="inline-flex justify-center items-center px-4 py-2.5 rounded-lg border border-slate-200 bg-white text-[#0F172A] text-sm font-medium hover:bg-slate-50 transition-colors"
             >
               Create invoice
             </Link>
+            <button
+              type="button"
+              disabled
+              className="inline-flex justify-center items-center px-4 py-2.5 rounded-lg border border-transparent text-slate-400 text-sm font-medium bg-slate-50 cursor-not-allowed"
+              title="Coming soon"
+            >
+              Edit project
+            </button>
+            <button
+              type="button"
+              disabled
+              className="inline-flex justify-center items-center px-4 py-2.5 rounded-lg border border-transparent text-slate-400 text-sm font-medium bg-slate-50 cursor-not-allowed"
+              title="Coming soon"
+            >
+              Mark status
+            </button>
           </div>
         </div>
       </section>

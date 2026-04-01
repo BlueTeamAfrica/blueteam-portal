@@ -17,6 +17,7 @@ import { useAuth } from "@/lib/authContext";
 import { useTenant } from "@/lib/tenantContext";
 import { MANAGED_SERVICE_CATEGORIES } from "@/lib/managedServiceCategories";
 import { isCanonicalClientId } from "@/lib/canonicalClientId";
+import { getManagedServiceCategoryLabel, getManagedServiceDisplayName } from "@/lib/serviceDisplayName";
 
 type ServiceStatus = "active" | "paused" | "pending" | "cancelled" | "retired";
 type BillingType = "none" | "one_time" | "recurring";
@@ -30,6 +31,9 @@ type Service = {
   projectId?: string;
   projectName?: string;
   category?: string;
+  categoryLabel?: string;
+  displayName: string;
+  categoryDisplay: string;
   tier?: string;
   status?: ServiceStatus | string;
   renewalDate?: Timestamp;
@@ -111,13 +115,14 @@ function StatusBadge({ status }: { status?: string }) {
   );
 }
 
-function CategoryBadge({ category }: { category?: string }) {
-  if (!category) return <span className="text-slate-500">—</span>;
+function CategoryBadge({ category, labelOverride }: { category?: string; labelOverride?: string }) {
+  const label =
+    labelOverride?.trim() ||
+    (category ? getManagedServiceCategoryLabel(category, undefined) : "");
+  if (!label) return <span className="text-slate-500">—</span>;
 
-  const normalized = normalizeCategory(category);
-  const label = MANAGED_SERVICE_CATEGORIES.find((o) => o.value === normalized)?.label ?? category;
   return (
-    <span className="inline-flex px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-700 capitalize">
+    <span className="inline-flex px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-700">
       {label}
     </span>
   );
@@ -214,7 +219,21 @@ export default function PortalServicesPage() {
       );
       setServices(
         svcSnap.docs.map((d) => {
-          const data = d.data();
+          const data = d.data() as {
+            name?: string;
+            clientId?: string;
+            clientName?: string;
+            projectId?: string;
+            projectName?: string;
+            category?: string;
+            categoryLabel?: string;
+            tier?: string;
+            plan?: string;
+            status?: string;
+            renewalDate?: Timestamp;
+            notes?: string;
+            updatedAt?: Timestamp;
+          };
           return {
             id: d.id,
             name: data.name,
@@ -223,6 +242,13 @@ export default function PortalServicesPage() {
             projectId: data.projectId,
             projectName: data.projectName,
             category: data.category,
+            categoryLabel: data.categoryLabel,
+            displayName: getManagedServiceDisplayName({
+              name: data.name,
+              category: data.category,
+              categoryLabel: data.categoryLabel,
+            }),
+            categoryDisplay: getManagedServiceCategoryLabel(data.category, data.categoryLabel),
             tier: data.tier ?? data.plan,
             status: data.status,
             renewalDate: data.renewalDate,
@@ -790,7 +816,58 @@ export default function PortalServicesPage() {
           </p>
         </div>
       ) : (
-        <div className="mt-4 md:mt-6 bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden max-w-full">
+        <>
+          <div className="mt-4 md:mt-6 md:hidden space-y-3">
+            {filtered.map((s) => {
+              const clientLabel =
+                s.clientName ?? (s.clientId ? clientLabelById.get(s.clientId) : undefined) ?? "—";
+              const projectLabel =
+                s.projectName ?? (s.projectId ? projectLabelById.get(s.projectId) : undefined) ?? "—";
+              const clientLinkBroken =
+                Boolean(s.clientName?.trim()) && !isCanonicalClientId(s.clientId);
+              return (
+                <button
+                  key={s.id}
+                  type="button"
+                  onClick={() => router.push(`/portal/services/${s.id}`)}
+                  className="w-full text-left rounded-xl border border-slate-200 bg-white p-4 shadow-sm active:bg-slate-50 transition-colors"
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="font-semibold text-[#0F172A] break-words">{s.displayName}</p>
+                      {s.categoryDisplay ? (
+                        <p className="text-xs text-slate-500 mt-0.5">{s.categoryDisplay}</p>
+                      ) : null}
+                    </div>
+                    <StatusBadge status={s.status} />
+                  </div>
+                  <dl className="mt-3 grid grid-cols-1 gap-2 text-sm">
+                    <div className="flex justify-between gap-2 text-slate-600">
+                      <dt className="text-slate-500 shrink-0">Client</dt>
+                      <dd className="font-medium text-[#0F172A] text-right break-words">{clientLabel}</dd>
+                    </div>
+                    <div className="flex justify-between gap-2 text-slate-600">
+                      <dt className="text-slate-500 shrink-0">Renewal</dt>
+                      <dd className="text-[#0F172A]">{formatDate(s.renewalDate)}</dd>
+                    </div>
+                    <div className="flex justify-between gap-2 text-slate-600">
+                      <dt className="text-slate-500 shrink-0">Project</dt>
+                      <dd className="text-[#0F172A] text-right break-words">{projectLabel}</dd>
+                    </div>
+                  </dl>
+                  {clientLinkBroken || (!isCanonicalClientId(s.clientId) && !clientLinkBroken) ? (
+                    <p className="text-[11px] text-amber-800 mt-2 leading-snug">
+                      {clientLinkBroken
+                        ? "Client name without clientId — open to fix."
+                        : "Missing clientId — client portal won’t list this service."}
+                    </p>
+                  ) : null}
+                </button>
+              );
+            })}
+          </div>
+
+        <div className="mt-4 md:mt-6 hidden md:block bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden max-w-full">
           <div className="w-full overflow-x-auto">
             <table className="min-w-[1050px] w-full border-collapse">
               <thead>
@@ -825,8 +902,11 @@ export default function PortalServicesPage() {
                     >
                       <td className="py-3 px-4 text-[#0F172A] font-medium">
                         <Link href={`/portal/services/${s.id}`} className="text-indigo-600 hover:underline focus:outline-none" onClick={(e) => e.stopPropagation()}>
-                          {s.name ?? "—"}
+                          {s.displayName}
                         </Link>
+                        {s.categoryDisplay ? (
+                          <div className="text-xs text-slate-500 mt-0.5 break-words">{s.categoryDisplay}</div>
+                        ) : null}
                         {s.tier ? (
                           <div className="text-xs text-slate-500 mt-0.5 break-words">Tier: {s.tier}</div>
                         ) : null}
@@ -848,7 +928,7 @@ export default function PortalServicesPage() {
                         <StatusBadge status={s.status} />
                       </td>
                       <td className="py-3 px-4">
-                        <CategoryBadge category={s.category} />
+                        <CategoryBadge category={s.category} labelOverride={s.categoryDisplay} />
                       </td>
                       <td className="py-3 px-4 text-[#0F172A]">{formatDate(s.renewalDate)}</td>
                       <td className="py-3 px-4 text-[#0F172A]">{projectLabel}</td>
@@ -859,6 +939,7 @@ export default function PortalServicesPage() {
             </table>
           </div>
         </div>
+        </>
       )}
     </div>
   );

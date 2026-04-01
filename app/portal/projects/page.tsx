@@ -150,36 +150,54 @@ export default function ProjectsPage() {
         </form>
       )}
 
-      <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden max-w-full">
-        <div className="w-full overflow-x-auto">
-          <table className="min-w-[800px] w-full border-collapse">
-          <thead>
-            <tr className="border-b border-slate-200 bg-slate-50">
-              <th className="text-left py-3 px-4 text-sm font-medium text-[#0F172A]">Project Name</th>
-              <th className="text-left py-3 px-4 text-sm font-medium text-[#0F172A]">Client Name</th>
-              <th className="text-left py-3 px-4 text-sm font-medium text-[#0F172A]">Status</th>
-            </tr>
-          </thead>
-          <tbody>
+      {projects.length > 0 ? (
+        <>
+          <div className="md:hidden mt-4 space-y-3">
             {projects.map((project) => (
-              <tr key={project.id} className="border-b border-slate-100 last:border-0 hover:bg-slate-50/50">
-                <td className="py-3 px-4 text-[#0F172A] font-medium">
-                  <Link
-                    href={`/portal/projects/${project.id}`}
-                    className="text-indigo-600 hover:underline"
-                  >
-                    {project.name ?? "—"}
-                  </Link>
-                </td>
-                <td className="py-3 px-4 text-[#0F172A]">{project.clientName ?? "—"}</td>
-                <td className="py-3 px-4 text-[#0F172A]">{project.status ?? "—"}</td>
-              </tr>
+              <Link
+                key={project.id}
+                href={`/portal/projects/${project.id}`}
+                className="block rounded-xl border border-slate-200 bg-white p-4 shadow-sm active:bg-slate-50 transition-colors"
+              >
+                <p className="font-semibold text-[#0F172A] break-words">{project.name?.trim() || "Project"}</p>
+                <p className="text-sm text-slate-600 mt-1">{project.clientName ?? "—"}</p>
+                <p className="text-xs font-medium text-slate-500 mt-2 uppercase tracking-wide">
+                  {project.status ?? "—"}
+                </p>
+              </Link>
             ))}
-          </tbody>
-          </table>
-        </div>
-      </div>
-      {projects.length === 0 && <p className="mt-4 text-slate-500">No projects.</p>}
+          </div>
+
+          <div className="hidden md:block bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden max-w-full">
+            <div className="w-full overflow-x-auto">
+              <table className="min-w-[800px] w-full border-collapse">
+                <thead>
+                  <tr className="border-b border-slate-200 bg-slate-50">
+                    <th className="text-left py-3 px-4 text-sm font-medium text-[#0F172A]">Project Name</th>
+                    <th className="text-left py-3 px-4 text-sm font-medium text-[#0F172A]">Client Name</th>
+                    <th className="text-left py-3 px-4 text-sm font-medium text-[#0F172A]">Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {projects.map((project) => (
+                    <tr key={project.id} className="border-b border-slate-100 last:border-0 hover:bg-slate-50/50">
+                      <td className="py-3 px-4 text-[#0F172A] font-medium">
+                        <Link href={`/portal/projects/${project.id}`} className="text-indigo-600 hover:underline">
+                          {project.name ?? "—"}
+                        </Link>
+                      </td>
+                      <td className="py-3 px-4 text-[#0F172A]">{project.clientName ?? "—"}</td>
+                      <td className="py-3 px-4 text-[#0F172A]">{project.status ?? "—"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </>
+      ) : (
+        <p className="mt-4 text-slate-500">No projects.</p>
+      )}
     </div>
   );
 }

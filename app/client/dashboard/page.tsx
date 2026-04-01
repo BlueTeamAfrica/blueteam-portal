@@ -23,6 +23,7 @@ import {
   healthPreviewPriority,
   normalizeServiceHealth,
 } from "@/lib/serviceHealth";
+import { getManagedServiceDisplayName } from "@/lib/serviceDisplayName";
 
 type RecentActivityItem = {
   id: string;
@@ -363,6 +364,8 @@ export default function ClientDashboardPage() {
       allServicesForHealth.forEach((d) => {
         const data = d.data() as {
           name?: string;
+          category?: string;
+          categoryLabel?: string;
           health?: string;
           healthNote?: string;
           nextAction?: string;
@@ -531,11 +534,18 @@ export default function ClientDashboardPage() {
       recentServiceDocs.forEach((d) => {
         const data = d.data() as {
           name?: string;
+          category?: string;
+          categoryLabel?: string;
           billingType?: string;
           subscriptionId?: string;
           createdAt?: { toDate?: () => Date };
           updatedAt?: { toDate?: () => Date };
         };
+        const svcTitle = getManagedServiceDisplayName({
+          name: data.name,
+          category: data.category,
+          categoryLabel: data.categoryLabel,
+        });
         const createdAt =
           data.createdAt && typeof data.createdAt.toDate === "function"
             ? data.createdAt.toDate()
@@ -549,7 +559,7 @@ export default function ClientDashboardPage() {
         if (createdAt) {
           activity.push({
             id: `svc_${d.id}_created`,
-            title: data.name ? `Service "${data.name}" created` : "Service created",
+            title: `New service: ${svcTitle}`,
             subtitle: `Billing: ${getBillingTypeLabel(data.billingType)}`,
             dateLabel: createdAt.toLocaleDateString(undefined, { month: "short", day: "numeric" }),
             icon: "🛠️",
@@ -560,7 +570,7 @@ export default function ClientDashboardPage() {
         if (updatedAt && createdAt && updatedAt.getTime() - createdAt.getTime() > 2 * 60 * 1000) {
           activity.push({
             id: `svc_${d.id}_updated`,
-            title: data.name ? `Service "${data.name}" updated` : "Service updated",
+            title: `Service updated: ${svcTitle}`,
             subtitle: `Billing: ${getBillingTypeLabel(data.billingType)}`,
             dateLabel: updatedAt.toLocaleDateString(undefined, { month: "short", day: "numeric" }),
             icon: "🧾",
@@ -571,7 +581,7 @@ export default function ClientDashboardPage() {
         if (updatedAt && bt === "recurring") {
           activity.push({
             id: `svc_${d.id}_recurring`,
-            title: data.name ? `Service "${data.name}" set to Recurring` : "Service set to Recurring",
+            title: `Recurring billing: ${svcTitle}`,
             subtitle: data.subscriptionId ? "Subscription linked" : undefined,
             dateLabel: updatedAt.toLocaleDateString(undefined, { month: "short", day: "numeric" }),
             icon: "💳",
@@ -668,10 +678,10 @@ export default function ClientDashboardPage() {
           <div className="px-4 py-4 sm:px-6 sm:py-5 border-b border-slate-100 bg-gradient-to-r from-slate-50/90 to-indigo-50/40">
             <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
               <div>
-                <h2 className="text-[#0F172A] text-lg font-semibold tracking-tight">Your Services Health</h2>
+                <h2 className="text-[#0F172A] text-lg font-semibold tracking-tight">Your services</h2>
                 <p className="text-sm text-slate-600 mt-1 max-w-2xl leading-relaxed">
-                  A quick read on how your managed services are doing. We keep this updated so you always know where
-                  things stand — no jargon, no noise.
+                  A simple snapshot of how your managed services are doing. We update this as our team works — plain
+                  language, no guesswork. If we need something from you, you&apos;ll see it called out clearly.
                 </p>
               </div>
               <Link
@@ -818,7 +828,7 @@ export default function ClientDashboardPage() {
           href="/client/support?new=1"
           className="inline-flex items-center px-4 py-2 rounded-lg border border-slate-200 bg-white text-[#0F172A] font-medium hover:bg-slate-50 transition-colors"
         >
-          ➕ New Ticket
+          New ticket
         </Link>
         <Link
           href="/client/invoices"
@@ -857,9 +867,10 @@ export default function ClientDashboardPage() {
             </div>
           ) : (
             <div className="bg-slate-50 border border-slate-100 rounded-xl p-4">
-              <p className="text-sm text-slate-700">No recent activity yet.</p>
-              <p className="text-xs text-slate-500 mt-1">
-                When services, subscriptions, or invoices update, you’ll see it here.
+              <p className="text-sm font-medium text-slate-800">You&apos;re all caught up for now.</p>
+              <p className="text-xs text-slate-600 mt-1.5 leading-relaxed">
+                When invoices are issued or your services change, we&apos;ll show a short timeline here so you never
+                have to hunt for updates.
               </p>
             </div>
           )}

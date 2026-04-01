@@ -5,12 +5,15 @@ import { collection, getDocs, addDoc, serverTimestamp } from "firebase/firestore
 import { db } from "@/lib/firebase";
 import { useAuth } from "@/lib/authContext";
 import { useTenant } from "@/lib/tenantContext";
+import { getManagedServiceDisplayName } from "@/lib/serviceDisplayName";
 
 export default function ClientsPage() {
   const { user } = useAuth();
   const { tenant } = useTenant();
   const [clients, setClients] = useState<{ id: string; name?: string; email?: string; status?: string }[]>([]);
-  const [servicesByClient, setServicesByClient] = useState<Record<string, Array<{ id: string; name?: string; category?: string }>>>({});
+  const [servicesByClient, setServicesByClient] = useState<
+    Record<string, Array<{ id: string; name?: string; category?: string; categoryLabel?: string }>>
+  >({});
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [name, setName] = useState("");
@@ -39,7 +42,10 @@ export default function ClientsPage() {
             status: d.data().status,
           }))
         );
-        const grouped: Record<string, Array<{ id: string; name?: string; category?: string }>> = {};
+        const grouped: Record<
+          string,
+          Array<{ id: string; name?: string; category?: string; categoryLabel?: string }>
+        > = {};
         for (const d of servicesSnap.docs) {
           const data = d.data() as { clientId?: string; name?: string; categoryLabel?: string; category?: string };
           const cid = data.clientId ?? "";
@@ -48,7 +54,8 @@ export default function ClientsPage() {
           grouped[cid].push({
             id: d.id,
             name: data.name,
-            category: data.categoryLabel ?? data.category,
+            category: data.category,
+            categoryLabel: data.categoryLabel,
           });
         }
         setServicesByClient(grouped);
@@ -91,7 +98,10 @@ export default function ClientsPage() {
           status: d.data().status,
         }))
       );
-      const grouped: Record<string, Array<{ id: string; name?: string; category?: string }>> = {};
+      const grouped: Record<
+        string,
+        Array<{ id: string; name?: string; category?: string; categoryLabel?: string }>
+      > = {};
       for (const d of servicesSnap.docs) {
         const data = d.data() as { clientId?: string; name?: string; categoryLabel?: string; category?: string };
         const cid = data.clientId ?? "";
@@ -100,7 +110,8 @@ export default function ClientsPage() {
         grouped[cid].push({
           id: d.id,
           name: data.name,
-          category: data.categoryLabel ?? data.category,
+          category: data.category,
+          categoryLabel: data.categoryLabel,
         });
       }
       setServicesByClient(grouped);
@@ -155,56 +166,106 @@ export default function ClientsPage() {
         </form>
       )}
 
-      <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden max-w-full">
-        <div className="w-full overflow-x-auto">
-          <table className="min-w-[980px] w-full border-collapse">
-          <thead>
-            <tr className="border-b border-slate-200 bg-slate-50">
-              <th className="text-left py-3 px-4 text-sm font-medium text-[#0F172A]">Name</th>
-              <th className="text-left py-3 px-4 text-sm font-medium text-[#0F172A]">Email</th>
-              <th className="text-left py-3 px-4 text-sm font-medium text-[#0F172A]">Services</th>
-              <th className="text-left py-3 px-4 text-sm font-medium text-[#0F172A]">Status</th>
-            </tr>
-          </thead>
-          <tbody>
+      {clients.length > 0 ? (
+        <>
+          <div className="md:hidden mt-4 space-y-3">
             {clients.map((client) => (
-              <tr key={client.id} className="border-b border-slate-100 last:border-0">
-                <td className="py-3 px-4 text-[#0F172A]">{client.name ?? "—"}</td>
-                <td className="py-3 px-4 text-[#0F172A]">{client.email ?? "—"}</td>
-                <td className="py-3 px-4 text-[#0F172A]">
+              <div key={client.id} className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+                <p className="font-semibold text-[#0F172A]">{client.name ?? "—"}</p>
+                <p className="text-sm text-slate-600 mt-0.5 break-all">{client.email ?? "—"}</p>
+                <p className="text-xs text-slate-500 mt-2">
+                  Status: <span className="font-medium text-[#0F172A]">{client.status ?? "—"}</span>
+                </p>
+                <div className="mt-3 pt-3 border-t border-slate-100">
                   {servicesByClient[client.id]?.length ? (
-                    <div className="space-y-1">
-                      <p className="text-xs text-slate-500">
-                        {servicesByClient[client.id].length} service
-                        {servicesByClient[client.id].length === 1 ? "" : "s"}
+                    <div className="space-y-2">
+                      <p className="text-xs font-medium text-slate-500 uppercase tracking-wide">
+                        Services ({servicesByClient[client.id].length})
                       </p>
                       <div className="flex flex-wrap gap-1">
-                        {servicesByClient[client.id].slice(0, 3).map((s) => (
+                        {servicesByClient[client.id].slice(0, 4).map((s) => (
                           <span
                             key={s.id}
                             className="inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-slate-100 text-slate-700"
                           >
-                            {s.name ?? s.category ?? s.id}
+                            {getManagedServiceDisplayName({
+                              name: s.name,
+                              category: s.category,
+                              categoryLabel: s.categoryLabel,
+                            })}
                           </span>
                         ))}
-                        {servicesByClient[client.id].length > 3 ? (
-                          <span className="text-xs text-slate-500">
-                            +{servicesByClient[client.id].length - 3} more
+                        {servicesByClient[client.id].length > 4 ? (
+                          <span className="text-xs text-slate-500 self-center">
+                            +{servicesByClient[client.id].length - 4} more
                           </span>
                         ) : null}
                       </div>
                     </div>
                   ) : (
-                    <span className="text-slate-500 text-sm">No services</span>
+                    <p className="text-sm text-slate-500">No linked services</p>
                   )}
-                </td>
-                <td className="py-3 px-4 text-[#0F172A]">{client.status ?? "—"}</td>
-              </tr>
+                </div>
+              </div>
             ))}
-          </tbody>
-          </table>
-        </div>
-      </div>
+          </div>
+
+          <div className="hidden md:block bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden max-w-full">
+            <div className="w-full overflow-x-auto">
+              <table className="min-w-[980px] w-full border-collapse">
+                <thead>
+                  <tr className="border-b border-slate-200 bg-slate-50">
+                    <th className="text-left py-3 px-4 text-sm font-medium text-[#0F172A]">Name</th>
+                    <th className="text-left py-3 px-4 text-sm font-medium text-[#0F172A]">Email</th>
+                    <th className="text-left py-3 px-4 text-sm font-medium text-[#0F172A]">Services</th>
+                    <th className="text-left py-3 px-4 text-sm font-medium text-[#0F172A]">Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {clients.map((client) => (
+                    <tr key={client.id} className="border-b border-slate-100 last:border-0">
+                      <td className="py-3 px-4 text-[#0F172A]">{client.name ?? "—"}</td>
+                      <td className="py-3 px-4 text-[#0F172A]">{client.email ?? "—"}</td>
+                      <td className="py-3 px-4 text-[#0F172A]">
+                        {servicesByClient[client.id]?.length ? (
+                          <div className="space-y-1">
+                            <p className="text-xs text-slate-500">
+                              {servicesByClient[client.id].length} service
+                              {servicesByClient[client.id].length === 1 ? "" : "s"}
+                            </p>
+                            <div className="flex flex-wrap gap-1">
+                              {servicesByClient[client.id].slice(0, 3).map((s) => (
+                                <span
+                                  key={s.id}
+                                  className="inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-slate-100 text-slate-700"
+                                >
+                                  {getManagedServiceDisplayName({
+                                    name: s.name,
+                                    category: s.category,
+                                    categoryLabel: s.categoryLabel,
+                                  })}
+                                </span>
+                              ))}
+                              {servicesByClient[client.id].length > 3 ? (
+                                <span className="text-xs text-slate-500">
+                                  +{servicesByClient[client.id].length - 3} more
+                                </span>
+                              ) : null}
+                            </div>
+                          </div>
+                        ) : (
+                          <span className="text-slate-500 text-sm">No services</span>
+                        )}
+                      </td>
+                      <td className="py-3 px-4 text-[#0F172A]">{client.status ?? "—"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </>
+      ) : null}
       {clients.length === 0 && <p className="mt-4 text-slate-500">No clients.</p>}
     </div>
   );

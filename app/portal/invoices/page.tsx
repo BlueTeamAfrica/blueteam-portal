@@ -496,7 +496,66 @@ export default function InvoicesPage() {
         </form>
       )}
 
-      <div className="mt-4 md:mt-6 bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden max-w-full">
+      {invoices.length > 0 ? (
+        <>
+          <div className="mt-4 md:mt-6 md:hidden space-y-3">
+            {invoices.map((inv) => (
+              <div key={inv.id} className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+                <div className="flex items-start justify-between gap-2">
+                  <div>
+                    <p className="font-semibold text-[#0F172A]">{getInvoiceDisplayLabel(inv)}</p>
+                    <p className="text-sm text-slate-600 mt-0.5">{getClientName(inv)}</p>
+                  </div>
+                  <StatusBadge status={inv.status} />
+                </div>
+                <div className="mt-3 flex justify-between text-sm">
+                  <span className="text-slate-500">Amount</span>
+                  <span className="font-semibold text-[#0F172A] tabular-nums">
+                    {inv.amount != null ? `${inv.currency ?? "USD"} ${inv.amount.toLocaleString()}` : "—"}
+                  </span>
+                </div>
+                <div className="mt-1 flex justify-between text-sm">
+                  <span className="text-slate-500">Due</span>
+                  <span className="text-[#0F172A]">{formatDate(inv.dueDate)}</span>
+                </div>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {inv?.source === "subscription" ? (
+                    <span className="rounded-full bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-700 border border-blue-200">
+                      Recurring
+                    </span>
+                  ) : (
+                    <span className="rounded-full bg-slate-50 px-2 py-0.5 text-xs font-medium text-slate-600 border border-slate-200">
+                      Manual
+                    </span>
+                  )}
+                </div>
+                <div className="mt-4 flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    disabled={downloadingPdfId === inv.id}
+                    className="flex-1 min-w-[120px] px-3 py-2 rounded-lg border border-slate-200 text-sm font-medium text-indigo-700 hover:bg-slate-50 disabled:opacity-50"
+                    onClick={() => downloadPdf(inv)}
+                  >
+                    {downloadingPdfId === inv.id ? "Downloading…" : "Download PDF"}
+                  </button>
+                  <button
+                    type="button"
+                    disabled={updatingId === inv.id}
+                    className="flex-1 min-w-[120px] px-3 py-2 rounded-lg bg-indigo-600 text-white text-sm font-semibold hover:bg-indigo-500 disabled:opacity-50"
+                    onClick={() => handleToggleStatus(inv)}
+                  >
+                    {updatingId === inv.id
+                      ? "…"
+                      : inv.status === "paid"
+                        ? "Mark unpaid"
+                        : "Mark paid"}
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+
+      <div className="mt-4 md:mt-6 hidden md:block bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden max-w-full">
         <div className="w-full overflow-x-auto">
           <table className="min-w-[900px] w-full border-collapse">
           <thead>
@@ -564,6 +623,8 @@ export default function InvoicesPage() {
           </table>
         </div>
       </div>
+        </>
+      ) : null}
       {invoices.length === 0 && (
         <div className="mt-4 md:mt-6 bg-white rounded-xl shadow-sm border border-slate-200 p-6 md:p-12 text-center max-w-full">
           <p className="text-slate-500 text-lg">No invoices yet</p>

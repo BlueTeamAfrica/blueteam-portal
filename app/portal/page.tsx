@@ -21,6 +21,7 @@ import {
   isAttentionServiceHealth,
   normalizeServiceHealth,
 } from "@/lib/serviceHealth";
+import { getManagedServiceCategoryLabel, getManagedServiceDisplayName } from "@/lib/serviceDisplayName";
 
 type Kpis = {
   totalClients: number;
@@ -52,11 +53,20 @@ function getBillingTypeLabel(v?: string) {
 type ServicePreviewRow = {
   id: string;
   name: string;
+  categoryLabel: string;
   clientName: string;
   health: string;
   healthNote?: string;
   nextAction?: string;
   nextActionDueLabel: string;
+};
+
+type UnpaidInvoicePreviewRow = {
+  id: string;
+  label: string;
+  amount: number;
+  currency: string;
+  dueDateLabel: string;
 };
 
 type ServiceHealthOverview = {
@@ -109,6 +119,7 @@ export default function PortalPage() {
   const { user } = useAuth();
   const { tenant, loading: tenantLoading, error: tenantError } = useTenant();
   const [kpis, setKpis] = useState<Kpis | null>(null);
+  const [unpaidInvoicePreview, setUnpaidInvoicePreview] = useState<UnpaidInvoicePreviewRow[]>([]);
   const [recentActivity, setRecentActivity] = useState<RecentActivityItem[]>([]);
   const [serviceHealthOverview, setServiceHealthOverview] = useState<ServiceHealthOverview | null>(null);
   const [loading, setLoading] = useState(true);
@@ -154,7 +165,7 @@ export default function PortalPage() {
 
         let unpaidInvoices = 0;
         let unpaidInvoiceValue = 0;
-        const unpaidSample: Array<{ id: string; label: string; amount: number; dueDateLabel: string }> = [];
+        const unpaidSample: UnpaidInvoicePreviewRow[] = [];
         unpaidSnap.forEach((doc) => {
           unpaidInvoices += 1;
           const data = doc.data() as {
@@ -167,7 +178,7 @@ export default function PortalPage() {
           };
           const amount = typeof data.amount === "number" ? data.amount : 0;
           unpaidInvoiceValue += amount;
-          if (unpaidSample.length < 3) {
+          if (unpaidSample.length < 5) {
             const label = data.invoiceNumber ?? doc.id;
             const dueDate =
               data.dueDate && typeof data.dueDate.toDate === "function"
@@ -177,7 +188,8 @@ export default function PortalPage() {
               id: doc.id,
               label,
               amount,
-              dueDateLabel: dueDate ? dueDate.toLocaleDateString() : "—",
+              currency: (data.currency ?? "USD").toUpperCase(),
+              dueDateLabel: dueDate ? dueDate.toLocaleDateString(undefined, { dateStyle: "medium" }) : "—",
             });
           }
         });
@@ -219,10 +231,20 @@ export default function PortalPage() {
         // Build a lightweight subscriptionId -> service mapping for better labels
         const serviceBySubId = new Map<string, { serviceName: string; billingType?: string }>();
         recentServicesSnap.forEach((doc) => {
-          const data = doc.data() as { name?: string; subscriptionId?: string; billingType?: string };
+          const data = doc.data() as {
+            name?: string;
+            category?: string;
+            categoryLabel?: string;
+            subscriptionId?: string;
+            billingType?: string;
+          };
           if (!data.subscriptionId) return;
           serviceBySubId.set(data.subscriptionId, {
-            serviceName: data.name ?? "Service",
+            serviceName: getManagedServiceDisplayName({
+              name: data.name,
+              category: data.category,
+              categoryLabel: data.categoryLabel,
+            }),
             billingType: data.billingType,
           });
         });
@@ -327,12 +349,19 @@ export default function PortalPage() {
         recentServicesSnap.forEach((doc) => {
           const data = doc.data() as {
             name?: string;
+            category?: string;
+            categoryLabel?: string;
             clientName?: string;
             createdAt?: { toDate?: () => Date };
             updatedAt?: { toDate?: () => Date };
             billingType?: string;
             subscriptionId?: string;
           };
+          const svcTitle = getManagedServiceDisplayName({
+            name: data.name,
+            category: data.category,
+            categoryLabel: data.categoryLabel,
+          });
           const createdAt =
             data.createdAt && typeof data.createdAt.toDate === "function"
               ? data.createdAt.toDate()
@@ -347,7 +376,7 @@ export default function PortalPage() {
             activity.push({
               id: `${doc.id}_created`,
               type: "service",
-              title: data.name ? `Service "${data.name}" created` : "Service created",
+              title: `Service created: ${svcTitle}`,
               subtitle: data.clientName ? `Client: ${data.clientName}` : undefined,
               dateLabel: createdAt.toLocaleDateString(undefined, { month: "short", day: "numeric" }),
               icon: "🛠️",
@@ -359,7 +388,7 @@ export default function PortalPage() {
             activity.push({
               id: `${doc.id}_updated`,
               type: "service",
-              title: data.name ? `Service "${data.name}" updated` : "Service updated",
+              title: `Service updated: ${svcTitle}`,
               subtitle: data.clientName ? `Client: ${data.clientName}` : undefined,
               dateLabel: updatedAt.toLocaleDateString(undefined, { month: "short", day: "numeric" }),
               icon: "🧾",
@@ -372,7 +401,7 @@ export default function PortalPage() {
             activity.push({
               id: `${doc.id}_recurring`,
               type: "service",
-              title: data.name ? `Service "${data.name}" set to Recurring` : "Service set to Recurring",
+              title: `Recurring billing: ${svcTitle}`,
               subtitle: data.clientName ? `Client: ${data.clientName}` : undefined,
               dateLabel: updatedAt.toLocaleDateString(undefined, { month: "short", day: "numeric" }),
               icon: "💳",
@@ -384,9 +413,7 @@ export default function PortalPage() {
             activity.push({
               id: `${doc.id}_sub_linked`,
               type: "service",
-              title: data.name
-                ? `Subscription created for service "${data.name}"`
-                : "Subscription created for service",
+              title: `Subscription linked: ${svcTitle}`,
               subtitle: data.clientName ? `Client: ${data.clientName}` : undefined,
               dateLabel: updatedAt.toLocaleDateString(undefined, { month: "short", day: "numeric" }),
               icon: "🔗",
@@ -419,6 +446,8 @@ export default function PortalPage() {
         servicesSnap.forEach((d) => {
           const data = d.data() as {
             name?: string;
+            category?: string;
+            categoryLabel?: string;
             clientName?: string;
             health?: string;
             healthNote?: string;
@@ -438,9 +467,15 @@ export default function PortalPage() {
             }
           }
 
+          const categoryLabel = getManagedServiceCategoryLabel(data.category, data.categoryLabel);
           sortRows.push({
             id: d.id,
-            name: data.name?.trim() ? data.name.trim() : "Untitled service",
+            name: getManagedServiceDisplayName({
+              name: data.name,
+              category: data.category,
+              categoryLabel: data.categoryLabel,
+            }),
+            categoryLabel,
             clientName: data.clientName?.trim() ? data.clientName.trim() : "—",
             health: data.health ?? "",
             healthNote: data.healthNote?.trim() ? data.healthNote.trim() : undefined,
@@ -470,6 +505,7 @@ export default function PortalPage() {
           unpaidInvoices,
           unpaidInvoiceValue,
         });
+        setUnpaidInvoicePreview(unpaidSample);
         setRecentActivity(sortedActivity);
         setServiceHealthOverview({
           counts,
@@ -503,47 +539,47 @@ export default function PortalPage() {
   if (!tenant) return <p className="text-[#0F172A]">No tenant access.</p>;
 
   return (
-    <div className="max-w-full min-w-0 space-y-6 md:space-y-8">
+    <div className="max-w-full min-w-0 space-y-5 md:space-y-7">
       {/* Welcome / header */}
-      <section className="bg-white rounded-xl shadow-sm border border-slate-200 p-4 md:p-6 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-        <div className="space-y-1">
-          <h1 className="text-[#0F172A] text-xl sm:text-2xl font-semibold break-words">
+      <section className="bg-white rounded-xl shadow-sm border border-slate-200 p-4 md:p-5 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+        <div className="space-y-1 min-w-0">
+          <h1 className="text-[#0F172A] text-xl sm:text-2xl font-semibold break-words tracking-tight">
             Welcome back{tenant.name ? `, ${tenant.name}` : ""}.
           </h1>
-          <p className="text-sm text-slate-600 break-words">
-            Overview of your clients, projects, invoices, and subscriptions.
+          <p className="text-sm text-slate-600 break-words leading-snug">
+            Revenue, delivery, and support — one calm overview.
           </p>
         </div>
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap gap-2 md:justify-end">
           <Link
             href="/portal/invoices"
-            className="px-3 py-2 sm:px-4 rounded-lg bg-[#4F46E5] text-white text-sm font-medium hover:bg-indigo-600 transition-colors whitespace-nowrap"
+            className="inline-flex items-center justify-center px-3 py-2 sm:px-4 rounded-lg bg-[#4F46E5] text-white text-sm font-semibold hover:bg-indigo-600 transition-colors whitespace-nowrap shadow-sm"
           >
-            ➕ Create Invoice
-          </Link>
-          <Link
-            href="/portal/support"
-            className="px-3 py-2 sm:px-4 rounded-lg border border-slate-300 text-sm text-slate-800 font-medium hover:bg-slate-50 whitespace-nowrap"
-          >
-            Support Center
+            Create invoice
           </Link>
           <Link
             href="/portal/support?new=1"
-            className="px-3 py-2 sm:px-4 rounded-lg border border-slate-300 text-sm text-slate-800 font-medium hover:bg-slate-50 whitespace-nowrap"
+            className="inline-flex items-center justify-center px-3 py-2 sm:px-4 rounded-lg border border-slate-200 bg-white text-sm font-medium text-[#0F172A] hover:bg-slate-50 whitespace-nowrap"
           >
-            ➕ New Ticket
+            New ticket
+          </Link>
+          <Link
+            href="/portal/support"
+            className="inline-flex items-center justify-center px-3 py-2 sm:px-4 rounded-lg border border-slate-200 bg-white text-sm font-medium text-[#0F172A] hover:bg-slate-50 whitespace-nowrap"
+          >
+            Support
           </Link>
           <Link
             href="/portal/subscriptions"
-            className="px-3 py-2 sm:px-4 rounded-lg border border-slate-300 text-sm text-slate-800 font-medium hover:bg-slate-50 whitespace-nowrap"
+            className="hidden sm:inline-flex items-center justify-center px-3 py-2 sm:px-4 rounded-lg border border-slate-200 bg-white text-sm font-medium text-[#0F172A] hover:bg-slate-50 whitespace-nowrap"
           >
-            Manage Subscriptions
+            Subscriptions
           </Link>
           <Link
             href="/portal/clients"
-            className="px-3 py-2 sm:px-4 rounded-lg border border-slate-300 text-sm text-slate-800 font-medium hover:bg-slate-50 whitespace-nowrap"
+            className="hidden sm:inline-flex items-center justify-center px-3 py-2 sm:px-4 rounded-lg border border-slate-200 bg-white text-sm font-medium text-[#0F172A] hover:bg-slate-50 whitespace-nowrap"
           >
-            View Clients
+            Clients
           </Link>
         </div>
       </section>
@@ -585,12 +621,13 @@ export default function PortalPage() {
       {/* Service Health Overview — operational layer */}
       {kpis && serviceHealthOverview && (
         <section className="rounded-2xl border border-slate-200/80 bg-gradient-to-br from-slate-50 via-white to-indigo-50/40 shadow-sm overflow-hidden max-w-full">
-          <div className="px-4 py-3 sm:px-6 sm:py-4 border-b border-slate-200/80 bg-slate-900/[0.04] flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+          <div className="px-4 py-3 sm:px-5 sm:py-3.5 border-b border-slate-200/80 bg-slate-900/[0.04] flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
             <div>
-              <h2 className="text-[#0F172A] text-lg font-semibold tracking-tight">Service Health Overview</h2>
-              <p className="text-xs text-slate-600 mt-0.5 max-w-xl">
-                Live snapshot of managed-service health. Services without an explicit status count as{" "}
-                <span className="font-medium text-slate-700">Healthy</span>.
+              <h2 className="text-[#0F172A] text-lg font-semibold tracking-tight">Service health</h2>
+              <p className="text-xs text-slate-600 mt-0.5 max-w-xl leading-relaxed">
+                What needs attention across managed services. New services default to{" "}
+                <span className="font-medium text-slate-700">Healthy</span> until you set otherwise — open a row to
+                update notes and next actions.
               </p>
             </div>
             <Link
@@ -601,7 +638,7 @@ export default function PortalPage() {
             </Link>
           </div>
 
-          <div className="p-4 sm:p-6 space-y-5">
+          <div className="p-4 sm:p-5 space-y-4">
             <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 sm:gap-3">
               {(
                 [
@@ -637,29 +674,29 @@ export default function PortalPage() {
               })}
             </div>
 
-            <div className="rounded-xl border border-slate-200 bg-white/90 backdrop-blur-sm p-4 sm:p-5 shadow-sm">
-              <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 mb-3">
+            <div className="rounded-xl border border-slate-200 bg-white/90 backdrop-blur-sm p-4 sm:p-4 shadow-sm">
+              <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2 mb-3">
                 <div>
-                  <h3 className="text-sm font-semibold text-[#0F172A]">Service preview</h3>
-                  <p className="text-xs text-slate-500 mt-0.5">
+                  <h3 className="text-sm font-semibold text-[#0F172A]">Priority services</h3>
+                  <p className="text-xs text-slate-500 mt-0.5 leading-relaxed">
                     {serviceHealthOverview.hasAnyAttention
-                      ? "Prioritized: Critical → Warning → Waiting on Client → Healthy. Up to 5 services."
-                      : "No urgent issues — showing up to 3 healthy services with optional notes."}
+                      ? "Sorted by severity, then next action date. Jump in to log notes or clear blockers."
+                      : "Nothing urgent — sample of active services. Open any row to refine health or next steps."}
                   </p>
                 </div>
                 <Link
                   href="/portal/services"
-                  className="text-xs font-medium text-indigo-600 hover:text-indigo-500 hover:underline shrink-0"
+                  className="text-xs font-semibold text-indigo-600 hover:text-indigo-500 shrink-0"
                 >
-                  Full list on Services →
+                  All services →
                 </Link>
               </div>
 
               {serviceHealthOverview.totalServices === 0 ? (
-                <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50/90 px-4 py-5 text-center">
+                <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50/90 px-4 py-4 text-center">
                   <p className="text-sm font-medium text-slate-700">No services yet</p>
-                  <p className="text-xs text-slate-500 mt-1">
-                    Add managed services to see health and next actions here.
+                  <p className="text-xs text-slate-500 mt-1 leading-relaxed">
+                    Add managed services to track health, client linkage, and billing in one place.
                   </p>
                   <Link
                     href="/portal/services"
@@ -679,12 +716,15 @@ export default function PortalPage() {
                           <div className="flex flex-wrap items-center gap-2">
                             <Link
                               href={`/portal/services/${row.id}`}
-                              className="text-sm font-semibold text-indigo-700 hover:text-indigo-600 hover:underline break-words"
+                              className="text-sm font-semibold text-[#0F172A] hover:text-indigo-700 break-words"
                             >
                               {row.name}
                             </Link>
                             <HealthOverviewBadge health={row.health} />
                           </div>
+                          {row.categoryLabel ? (
+                            <p className="text-[11px] text-slate-500">{row.categoryLabel}</p>
+                          ) : null}
                           <p className="text-[11px] text-slate-500">
                             Client: <span className="text-slate-700 font-medium">{row.clientName}</span>
                           </p>
@@ -694,22 +734,30 @@ export default function PortalPage() {
                             </p>
                           ) : null}
                         </div>
-                        {(row.nextAction || row.nextActionDueLabel !== "—") && (
-                          <div className="text-left sm:text-right shrink-0 min-w-0 sm:max-w-[45%]">
-                            {row.nextAction ? (
-                              <>
-                                <p className="text-[10px] uppercase tracking-wide text-slate-500">Next action</p>
-                                <p className="text-xs font-medium text-[#0F172A] break-words">{row.nextAction}</p>
-                              </>
-                            ) : null}
-                            {row.nextActionDueLabel !== "—" ? (
-                              <p className="text-[11px] text-slate-500 mt-1">
-                                Due{" "}
-                                <span className="font-medium text-slate-700">{row.nextActionDueLabel}</span>
-                              </p>
-                            ) : null}
-                          </div>
-                        )}
+                        <div className="flex flex-col sm:items-end gap-2 shrink-0 min-w-0 sm:max-w-[45%]">
+                          {(row.nextAction || row.nextActionDueLabel !== "—") && (
+                            <div className="text-left sm:text-right min-w-0 w-full">
+                              {row.nextAction ? (
+                                <>
+                                  <p className="text-[10px] uppercase tracking-wide text-slate-500">Next action</p>
+                                  <p className="text-xs font-medium text-[#0F172A] break-words">{row.nextAction}</p>
+                                </>
+                              ) : null}
+                              {row.nextActionDueLabel !== "—" ? (
+                                <p className="text-[11px] text-slate-500 mt-1">
+                                  Due{" "}
+                                  <span className="font-medium text-slate-700">{row.nextActionDueLabel}</span>
+                                </p>
+                              ) : null}
+                            </div>
+                          )}
+                          <Link
+                            href={`/portal/services/${row.id}`}
+                            className="inline-flex items-center justify-center rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-indigo-500 sm:w-auto w-full text-center"
+                          >
+                            Review & update
+                          </Link>
+                        </div>
                       </div>
                     </li>
                   ))}
@@ -717,10 +765,10 @@ export default function PortalPage() {
               )}
 
               {!serviceHealthOverview.hasAnyAttention && serviceHealthOverview.totalServices > 0 ? (
-                <div className="mt-4 rounded-xl border border-emerald-200/80 bg-emerald-50/90 px-4 py-3 sm:px-5 sm:py-4">
-                  <p className="text-sm font-semibold text-emerald-900">All services are healthy. You&apos;re in control.</p>
-                  <p className="text-xs text-emerald-800/90 mt-1">
-                    Nothing is in Warning, Critical, or Waiting on Client right now.
+                <div className="mt-3 rounded-lg border border-emerald-200/80 bg-emerald-50/90 px-3 py-2.5 sm:px-4 sm:py-3">
+                  <p className="text-sm font-semibold text-emerald-900">All clear on monitored services.</p>
+                  <p className="text-xs text-emerald-800/90 mt-0.5 leading-relaxed">
+                    No warning, critical, or waiting-on-client states right now.
                   </p>
                 </div>
               ) : null}
@@ -730,54 +778,93 @@ export default function PortalPage() {
       )}
 
       {/* Two-column area: unpaid invoices + activity */}
-      <section className="grid grid-cols-1 lg:grid-cols-3 gap-4 md:gap-6">
+      <section className="grid grid-cols-1 lg:grid-cols-3 gap-4 md:gap-5">
         {/* Unpaid invoices summary */}
-        <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4 md:p-5 lg:col-span-1 max-w-full">
-          <div className="flex items-center justify-between gap-2 mb-3">
+        <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4 md:p-4 lg:col-span-1 max-w-full">
+          <div className="flex items-center justify-between gap-2 mb-2">
             <h2 className="text-[#0F172A] text-base font-semibold">Unpaid invoices</h2>
             <Link
               href="/portal/invoices"
-              className="text-xs text-[#4F46E5] hover:underline whitespace-nowrap"
+              className="text-xs font-semibold text-indigo-600 hover:text-indigo-500 whitespace-nowrap"
             >
               View all
             </Link>
           </div>
           {kpis && kpis.unpaidInvoices === 0 ? (
-            <p className="text-sm text-slate-500">You&apos;re all caught up. No unpaid invoices.</p>
+            <p className="text-sm text-slate-600 leading-relaxed">Nothing outstanding — great work.</p>
           ) : (
-            <p className="text-sm text-slate-600">
-              {kpis ? kpis.unpaidInvoices : 0} unpaid invoice(s) totalling{" "}
-              {kpis ? `$${kpis.unpaidInvoiceValue.toLocaleString()}` : "$0"}.
-            </p>
+            <>
+              <p className="text-sm text-slate-700">
+                <span className="font-semibold tabular-nums">{kpis?.unpaidInvoices ?? 0}</span> open ·{" "}
+                <span className="font-semibold tabular-nums">${kpis?.unpaidInvoiceValue.toLocaleString() ?? 0}</span>{" "}
+                total
+              </p>
+              {unpaidInvoicePreview.length > 0 ? (
+                <ul className="mt-3 space-y-2 border-t border-slate-100 pt-3">
+                  {unpaidInvoicePreview.map((row) => (
+                    <li
+                      key={row.id}
+                      className="flex items-start justify-between gap-2 text-sm"
+                    >
+                      <div className="min-w-0">
+                        <p className="font-medium text-[#0F172A] truncate">{row.label}</p>
+                        <p className="text-xs text-slate-500">Due {row.dueDateLabel}</p>
+                      </div>
+                      <p className="shrink-0 font-semibold tabular-nums text-[#0F172A]">
+                        {row.currency} {row.amount.toLocaleString()}
+                      </p>
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
+              {(kpis?.unpaidInvoices ?? 0) > unpaidInvoicePreview.length ? (
+                <p className="text-[11px] text-slate-500 mt-2">
+                  +{(kpis?.unpaidInvoices ?? 0) - unpaidInvoicePreview.length} more on Invoices
+                </p>
+              ) : null}
+            </>
           )}
         </div>
 
         {/* Recent activity timeline */}
-        <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4 md:p-5 lg:col-span-2 max-w-full">
-          <div className="flex items-center justify-between gap-2 mb-3">
+        <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4 md:p-4 lg:col-span-2 max-w-full">
+          <div className="flex items-center justify-between gap-2 mb-2">
             <h2 className="text-[#0F172A] text-base font-semibold">Recent activity</h2>
           </div>
           {recentActivity.length === 0 ? (
-            <p className="text-sm text-slate-500">No recent activity yet.</p>
+            <p className="text-sm text-slate-600 leading-relaxed">
+              Invoices, subscriptions, projects, and services will appear here as your team works.
+            </p>
           ) : (
-            <ol className="space-y-3 text-sm text-[#0F172A]">
-              {recentActivity.map((item) => (
-                <li key={`${item.type}-${item.id}`} className="flex items-start gap-3">
-                  <div className="mt-0.5">{item.icon}</div>
-                  <div className="min-w-0">
-                    <div className="flex items-center justify-between gap-2">
-                      <p className="font-medium truncate">{item.title}</p>
-                      <span className="text-xs text-slate-500 whitespace-nowrap">
-                        {item.dateLabel}
+            <ul className="space-y-2">
+              {recentActivity.map((item) => {
+                const kind =
+                  item.type === "invoice"
+                    ? "Invoice"
+                    : item.type === "subscription"
+                      ? "Subscription"
+                      : item.type === "project"
+                        ? "Project"
+                        : "Service";
+                return (
+                  <li
+                    key={`${item.type}-${item.id}`}
+                    className="rounded-lg border border-slate-100 bg-slate-50/60 px-3 py-2.5"
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <span className="text-[10px] font-bold uppercase tracking-wide text-slate-500 shrink-0">
+                        {kind}
                       </span>
+                      <span className="text-[11px] text-slate-500 whitespace-nowrap">{item.dateLabel}</span>
                     </div>
-                    {item.subtitle && (
-                      <p className="text-xs text-slate-500 truncate">{item.subtitle}</p>
-                    )}
-                  </div>
-                </li>
-              ))}
-            </ol>
+                    <p className="text-sm font-medium text-[#0F172A] mt-1 leading-snug break-words">{item.title}</p>
+                    {item.subtitle ? (
+                      <p className="text-xs text-slate-600 mt-1 leading-relaxed break-words">{item.subtitle}</p>
+                    ) : null}
+                  </li>
+                );
+              })}
+            </ul>
           )}
         </div>
       </section>
