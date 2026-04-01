@@ -411,14 +411,14 @@ export default function ClientSupportPage() {
         </form>
       )}
 
-      {/* Mobile (viewport below md): stacked ticket cards; no table horizontal scroll */}
-      <div className="md:hidden space-y-3">
+      {/* —— Mobile-only layout (never a table; hidden from md upward) —— */}
+      <section className="block md:hidden space-y-4" aria-label="Your tickets">
         {loading ? (
-          <div className="rounded-2xl border border-slate-200 bg-white p-6 text-center text-sm text-slate-500">
+          <div className="rounded-3xl bg-white p-6 text-center text-sm text-slate-500 shadow-[0_2px_12px_rgba(15,23,42,0.06)] ring-1 ring-slate-200/70">
             Loading tickets…
           </div>
         ) : !hasTickets ? (
-          <div className="rounded-2xl border border-slate-200 bg-white p-8 text-center shadow-sm">
+          <div className="rounded-3xl bg-white p-8 text-center shadow-[0_2px_12px_rgba(15,23,42,0.06)] ring-1 ring-slate-200/70">
             <p className="text-base font-medium text-slate-800">No tickets yet</p>
             <p className="text-sm text-slate-500 mt-2 leading-relaxed">
               Create a ticket to start a conversation with the team.
@@ -426,18 +426,18 @@ export default function ClientSupportPage() {
             <button
               type="button"
               onClick={() => openNewTicketFlow(router, pathname, setShowForm, subjectRef)}
-              className="mt-5 w-full min-h-11 rounded-xl bg-[#4F46E5] px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-indigo-600 transition-colors"
+              className="mt-5 w-full min-h-11 rounded-2xl bg-[#4F46E5] px-4 py-2.5 text-sm font-semibold text-white hover:bg-indigo-600 transition-colors"
             >
               Create your first ticket
             </button>
           </div>
         ) : (
-          <ul className="space-y-3 list-none p-0 m-0">
+          <ul className="space-y-4 list-none p-0 m-0">
             {tickets.map((t) => (
               <li key={t.id} className="min-w-0">
                 <Link
                   href={`/client/support/${t.id}`}
-                  className="block rounded-2xl border border-slate-200 bg-white p-4 min-w-0 shadow-sm active:bg-slate-50/80 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#4F46E5] focus-visible:ring-offset-2"
+                  className="block min-w-0 rounded-3xl bg-white p-5 shadow-[0_2px_12px_rgba(15,23,42,0.06)] ring-1 ring-slate-200/70 active:bg-slate-50/90 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#4F46E5] focus-visible:ring-offset-2"
                 >
                   <div className="flex items-start justify-between gap-3 min-w-0">
                     <div className="min-w-0 flex-1">
@@ -456,7 +456,7 @@ export default function ClientSupportPage() {
                     {statusBadge(t.status)}
                     {priorityBadge(t.priority)}
                   </div>
-                  <dl className="mt-4 space-y-2 text-sm border-t border-slate-100 pt-4">
+                  <dl className="mt-4 space-y-2.5 text-sm pt-4 border-t border-dashed border-slate-200/90">
                     <div className="flex justify-between gap-3">
                       <dt className="text-slate-500 shrink-0">Created</dt>
                       <dd className="font-medium text-[#0F172A] text-right tabular-nums">
@@ -471,7 +471,7 @@ export default function ClientSupportPage() {
                     </div>
                   </dl>
                   {t.projectName || t.serviceName ? (
-                    <p className="mt-3 text-xs text-slate-500 break-words">
+                    <p className="mt-3 text-xs text-slate-500 break-words leading-relaxed">
                       {t.projectName ? `Project: ${t.projectName}` : ""}
                       {t.projectName && t.serviceName ? " · " : ""}
                       {t.serviceName ? `Service: ${t.serviceName}` : ""}
@@ -482,10 +482,10 @@ export default function ClientSupportPage() {
             ))}
           </ul>
         )}
-      </div>
+      </section>
 
-      {/* Desktop md+: table layout unchanged */}
-      <div className="hidden md:block bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden max-w-full">
+      {/* —— Desktop-only table (md+; no mobile card styles) —— */}
+      <section className="hidden md:block bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden max-w-full" aria-label="Your tickets, table view">
         <div className="w-full overflow-x-auto">
           <table className="min-w-[800px] w-full border-collapse">
             <thead>
@@ -553,7 +553,7 @@ export default function ClientSupportPage() {
             </tbody>
           </table>
         </div>
-      </div>
+      </section>
     </div>
   );
 }
