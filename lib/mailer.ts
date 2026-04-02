@@ -28,6 +28,16 @@ export function getClientInvoicePortalUrl(invoiceId: string) {
   return `${base}/client/invoices/${encodeURIComponent(invoiceId)}`;
 }
 
+export function getClientServicePortalUrl(serviceId: string) {
+  const base = portalBaseUrl();
+  return `${base}/client/services/${encodeURIComponent(serviceId)}`;
+}
+
+export function getClientSupportTicketPortalUrl(ticketId: string) {
+  const base = portalBaseUrl();
+  return `${base}/client/support/${encodeURIComponent(ticketId)}`;
+}
+
 export async function sendAdminInvoiceEmail({
   to,
   tenantName,
@@ -167,6 +177,9 @@ export async function sendClientInvoicesEmail({
   return info;
 }
 
+const portalSignInHint =
+  "Sign in to the client portal if prompted — links open in your browser, not the raw PDF API.";
+
 /** overdue_invoice — client portal automation */
 export async function sendClientOverdueInvoiceEmail({
   to,
@@ -225,7 +238,7 @@ export async function sendClientOverdueInvoiceEmail({
     <p>
       <a href="${thisInvoiceUrl}" style="display:inline-block;padding:10px 16px;background:#4f46e5;color:#fff;text-decoration:none;border-radius:8px;font-weight:600;">Open invoice</a>
     </p>
-    <p style="font-size: 13px; color: #64748b;">Sign in to the portal if prompted, then use <strong>Download PDF</strong> on the invoice page.</p>
+    <p style="font-size: 13px; color: #64748b;">${escapeHtml(portalSignInHint)} Use <strong>Download PDF</strong> on the invoice page.</p>
     <p style="font-size: 13px;">
       <a href="${invoicesUrl}" style="color:#4f46e5;">View all invoices</a>
     </p>
@@ -254,21 +267,23 @@ export async function sendClientServiceWaitingEmail({
   serviceUrl: string;
 }) {
   await transporter.verify();
-  const subject = `Action needed — ${serviceName}`;
-  const noteBlock = healthNote.trim()
-    ? `\n\nNote from the team:\n${healthNote}`
-    : "";
-  const actionBlock = nextAction.trim() ? `\n\nNext step: ${nextAction}` : "";
+  const subject = `Action needed: ${serviceName}`;
+  const noteShort = healthNote.trim().slice(0, 400);
+  const actionShort = nextAction.trim().slice(0, 300);
   const text = [
     `Hello ${clientName},`,
     ``,
-    `We need your input on: ${serviceName}.${actionBlock}${noteBlock}`,
+    `${tenantName} needs a quick update on: ${serviceName}.`,
+    actionShort ? `Next step: ${actionShort}` : "",
+    noteShort ? `Note: ${noteShort}` : "",
     ``,
-    `Open the service in your client portal:`,
+    `Open in your client portal:`,
     serviceUrl,
     ``,
     `— ${tenantName}`,
-  ].join("\n");
+  ]
+    .filter(Boolean)
+    .join("\n");
 
   const info = await transporter.sendMail({
     from: `"Blue Team Portal" <${user}>`,
@@ -279,12 +294,13 @@ export async function sendClientServiceWaitingEmail({
     html: `
   <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #0f172a;">
     <p>Hello ${escapeHtml(clientName)},</p>
-    <p><strong>We need your input</strong> on <strong>${escapeHtml(serviceName)}</strong>.</p>
-    ${nextAction.trim() ? `<p><strong>Next step:</strong> ${escapeHtml(nextAction)}</p>` : ""}
-    ${healthNote.trim() ? `<p style="margin-top:12px;padding:12px;background:#f8fafc;border-radius:8px;border:1px solid #e2e8f0;"><strong>Note:</strong> ${escapeHtml(healthNote)}</p>` : ""}
+    <p><strong>${escapeHtml(tenantName)}</strong> needs an update on <strong>${escapeHtml(serviceName)}</strong>.</p>
+    ${actionShort ? `<p style="margin:0 0 8px;"><strong>Next step:</strong> ${escapeHtml(actionShort)}</p>` : ""}
+    ${noteShort ? `<p style="margin:0 0 12px;padding:10px 12px;background:#f8fafc;border-radius:8px;border:1px solid #e2e8f0;font-size:14px;">${escapeHtml(noteShort)}</p>` : ""}
     <p>
-      <a href="${serviceUrl}" style="display:inline-block;padding:10px 16px;background:#4f46e5;color:#fff;text-decoration:none;border-radius:8px;font-weight:600;">View service</a>
+      <a href="${serviceUrl}" style="display:inline-block;padding:10px 16px;background:#4f46e5;color:#fff;text-decoration:none;border-radius:8px;font-weight:600;">Open in portal</a>
     </p>
+    <p style="font-size: 12px; color: #64748b;">${escapeHtml(portalSignInHint)}</p>
     <p style="font-size: 12px; color: #64748b;">${escapeHtml(tenantName)}</p>
   </div>`,
   });
@@ -306,15 +322,14 @@ export async function sendClientSupportReplyWaitingEmail({
   ticketUrl: string;
 }) {
   await transporter.verify();
-  const subject = `Reply needed — support ticket`;
+  const subject = `Reply needed — support`;
+  const subjShort = ticketSubject.trim().slice(0, 120) || "Support ticket";
   const text = [
     `Hello ${clientName},`,
     ``,
-    `We're waiting on your reply for this support ticket:`,
+    `We're waiting for your reply on: ${subjShort}`,
     ``,
-    `${ticketSubject}`,
-    ``,
-    `Open the ticket:`,
+    `Reply in the client portal:`,
     ticketUrl,
     ``,
     `— ${tenantName}`,
@@ -329,11 +344,12 @@ export async function sendClientSupportReplyWaitingEmail({
     html: `
   <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #0f172a;">
     <p>Hello ${escapeHtml(clientName)},</p>
-    <p><strong>We're waiting on your reply</strong> for this support ticket:</p>
-    <p style="padding:12px;background:#f0f9ff;border-radius:8px;border:1px solid #bae6fd;"><strong>${escapeHtml(ticketSubject)}</strong></p>
+    <p>We're waiting for your <strong>reply</strong> on this ticket:</p>
+    <p style="padding:10px 12px;background:#f0f9ff;border-radius:8px;border:1px solid #bae6fd;font-size:14px;"><strong>${escapeHtml(subjShort)}</strong></p>
     <p>
-      <a href="${ticketUrl}" style="display:inline-block;padding:10px 16px;background:#4f46e5;color:#fff;text-decoration:none;border-radius:8px;font-weight:600;">Open ticket</a>
+      <a href="${ticketUrl}" style="display:inline-block;padding:10px 16px;background:#4f46e5;color:#fff;text-decoration:none;border-radius:8px;font-weight:600;">Reply in portal</a>
     </p>
+    <p style="font-size: 12px; color: #64748b;">${escapeHtml(portalSignInHint)}</p>
     <p style="font-size: 12px; color: #64748b;">${escapeHtml(tenantName)}</p>
   </div>`,
   });
