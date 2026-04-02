@@ -188,6 +188,19 @@ export default function ClientServiceDetailPage() {
   }, [user, tenant?.id, role, clientId, serviceId]);
 
   useEffect(() => {
+    setRespondSuccess(null);
+    setRespondError(null);
+    setResponseText("");
+  }, [serviceId]);
+
+  useEffect(() => {
+    const pending =
+      service?.clientActionRequired === true &&
+      String(service?.clientActionStatus ?? "").toLowerCase() === "pending";
+    if (pending) setRespondSuccess(null);
+  }, [service?.clientActionRequired, service?.clientActionStatus]);
+
+  useEffect(() => {
     const tid = tenant?.id;
     const subId = service?.subscriptionId;
     if (!user || !tid || role !== "client" || !clientId || !subId) {
@@ -354,6 +367,16 @@ export default function ClientServiceDetailPage() {
           <p className="text-rose-700 text-sm break-words">{error}</p>
         </div>
       )}
+
+      {respondSuccess ? (
+        <div
+          className="mt-4 bg-white rounded-xl shadow-sm border border-emerald-200 p-4"
+          role="status"
+          aria-live="polite"
+        >
+          <p className="text-emerald-900 text-sm font-medium break-words">{respondSuccess}</p>
+        </div>
+      ) : null}
 
       <div className="mt-4 space-y-4 md:space-y-6">
         {/* Overview */}
