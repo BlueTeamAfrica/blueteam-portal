@@ -1,5 +1,7 @@
 import "server-only";
 import { adminDb } from "@/lib/firebaseAdmin";
+import { clientVisibleInvoiceSignature } from "@/lib/server/invoiceClientVisible";
+import { notifyInvoiceCreated } from "@/lib/server/invoiceNotify";
 import { sendClientInvoicesEmail } from "@/lib/mailer";
 
 type SubStatus = "active" | "paused" | "cancelled";
@@ -211,8 +213,9 @@ export async function generateDueInvoicesForTenant(tenantId: string): Promise<Ge
         const interval = sub.interval as Interval;
         const newNextBillingDate = advanceNextBillingDate(oldNextBillingDate, interval);
 
-        tx.set(invoiceRef, {
+        const invPayload: Record<string, unknown> = {
           clientId: sub.clientId,
+          clientName: (sub.clientName ?? "").trim() || sub.clientId,
           title: sub.name,
           amount: sub.price ?? 0,
           currency: sub.currency || "USD",
@@ -224,7 +227,9 @@ export async function generateDueInvoicesForTenant(tenantId: string): Promise<Ge
           billingKey,
           invoiceNumber: billingKey,
           createdAt: new Date(),
-        });
+        };
+        invPayload.lastClientVisibleHash = clientVisibleInvoiceSignature(invPayload);
+        tx.set(invoiceRef, invPayload);
 
         tx.update(subDoc.ref, {
           lastInvoiceDate: issueDate,
@@ -267,6 +272,22 @@ export async function generateDueInvoicesForTenant(tenantId: string): Promise<Ge
         message: e instanceof Error ? e.message : String(e),
         code: e && typeof e === "object" && "code" in e ? (e as { code: unknown }).code : null,
       });
+    }
+  }
+
+  for (const clientId of Object.keys(createdInvoicesByClient)) {
+    for (const item of createdInvoicesByClient[clientId]) {
+      try {
+        const invRef = db.collection("tenants").doc(tenantId).collection("invoices").doc(item.invoiceId);
+        const invSnap = await invRef.get();
+        if (invSnap.exists) {
+          await notifyInvoiceCreated(tenantId, item.invoiceId, invSnap.data() as Record<string, unknown>, {
+            skipClientEmail: true,
+          });
+        }
+      } catch (e) {
+        console.error("[generateDueInvoices] invoice_created notify failed", { invoiceId: item.invoiceId, err: e });
+      }
     }
   }
 

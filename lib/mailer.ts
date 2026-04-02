@@ -38,6 +38,9 @@ export function getClientSupportTicketPortalUrl(ticketId: string) {
   return `${base}/client/support/${encodeURIComponent(ticketId)}`;
 }
 
+const portalSignInHint =
+  "Sign in to the client portal if prompted — links open in your browser, not the raw PDF API.";
+
 export async function sendAdminInvoiceEmail({
   to,
   tenantName,
@@ -177,8 +180,89 @@ export async function sendClientInvoicesEmail({
   return info;
 }
 
-const portalSignInHint =
-  "Sign in to the client portal if prompted — links open in your browser, not the raw PDF API.";
+/** Single new invoice — same portal link pattern as batch new-invoice email. */
+export async function sendInvoiceCreatedEmail({
+  to,
+  clientName,
+  tenantName,
+  invoiceId,
+  invoiceLabel,
+  amount,
+  currency,
+  dueDateLabel,
+}: {
+  to: string;
+  clientName: string;
+  tenantName: string;
+  invoiceId: string;
+  invoiceLabel: string;
+  amount: number;
+  currency: string;
+  dueDateLabel: string;
+}) {
+  return sendClientInvoicesEmail({
+    to,
+    clientName,
+    tenantName,
+    items: [{ invoiceId, invoiceLabel, amount, currency, dueDate: dueDateLabel }],
+  });
+}
+
+export async function sendInvoiceUpdatedEmail({
+  to,
+  clientName,
+  tenantName,
+  invoiceId,
+  invoiceLabel,
+}: {
+  to: string;
+  clientName: string;
+  tenantName: string;
+  invoiceId: string;
+  invoiceLabel: string;
+}) {
+  await transporter.verify();
+  const thisInvoiceUrl = getClientInvoicePortalUrl(invoiceId);
+  const invoicesUrl = `${portalBaseUrl()}/client/invoices`;
+  const subject = `Invoice updated — ${tenantName}`;
+  const text = [
+    `Hello ${clientName},`,
+    ``,
+    `An invoice has been updated and may have a new amount, due date, line items, or notes:`,
+    ``,
+    `Invoice: ${invoiceLabel}`,
+    ``,
+    `Please review it in the client portal:`,
+    thisInvoiceUrl,
+    ``,
+    `All invoices: ${invoicesUrl}`,
+    ``,
+    `— ${tenantName}`,
+  ].join("\n");
+
+  const info = await transporter.sendMail({
+    from: `"Blue Team Portal" <${user}>`,
+    replyTo: user ?? undefined,
+    to,
+    subject,
+    text,
+    html: `
+  <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #0f172a;">
+    <p>Hello ${escapeHtml(clientName)},</p>
+    <p><strong>An invoice has been updated.</strong> Please review the latest details in the portal (amount, due date, line items, or notes may have changed).</p>
+    <p style="padding:10px 12px;background:#f8fafc;border-radius:8px;border:1px solid #e2e8f0;font-size:14px;"><strong>${escapeHtml(invoiceLabel)}</strong></p>
+    <p>
+      <a href="${thisInvoiceUrl}" style="display:inline-block;padding:10px 16px;background:#4f46e5;color:#fff;text-decoration:none;border-radius:8px;font-weight:600;">Review invoice</a>
+    </p>
+    <p style="font-size: 13px; color: #64748b;">${escapeHtml(portalSignInHint)}</p>
+    <p style="font-size: 13px;">
+      <a href="${invoicesUrl}" style="color:#4f46e5;">View all invoices</a>
+    </p>
+    <p style="font-size: 12px; color: #64748b;">${escapeHtml(tenantName)}</p>
+  </div>`,
+  });
+  return info;
+}
 
 /** overdue_invoice — client portal automation */
 export async function sendClientOverdueInvoiceEmail({

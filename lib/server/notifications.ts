@@ -3,6 +3,8 @@ import { Timestamp } from "firebase-admin/firestore";
 import { adminDb } from "@/lib/firebaseAdmin";
 
 export type PortalNotificationType =
+  | "invoice_created"
+  | "invoice_updated"
   | "invoice_overdue"
   | "service_input_needed"
   | "support_waiting_client"

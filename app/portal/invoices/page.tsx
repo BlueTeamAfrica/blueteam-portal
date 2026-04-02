@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { collection, getDocs, addDoc, doc, getDoc, updateDoc, serverTimestamp, Timestamp } from "firebase/firestore";
+import Link from "next/link";
+import { collection, getDocs, doc, getDoc, Timestamp } from "firebase/firestore";
 import { auth, db } from "@/lib/firebase";
 import { useAuth } from "@/lib/authContext";
 import { useTenant } from "@/lib/tenantContext";
@@ -215,7 +216,7 @@ export default function InvoicesPage() {
       resolvedCanInvoices,
     },
     formSubmitGate_allowCreateInvoice: canUseAddInvoice,
-    backendPath: "Direct Firestore addDoc → tenants/{tenantId}/invoices (no REST API)",
+    backendPath: "POST /api/invoices (server Firestore + client email + in-app notifications)",
   };
 
   useEffect(() => {
@@ -281,7 +282,7 @@ export default function InvoicesPage() {
 
   async function handleAddInvoice(e: React.FormEvent) {
     e.preventDefault();
-    if (!tenant?.id) return;
+    if (!tenant?.id || !user) return;
 
     if (!canUseAddInvoice) {
       setFormError("Only admins can create invoices. If you are an admin, your plan may not include invoicing.");
@@ -320,23 +321,35 @@ export default function InvoicesPage() {
       const invoiceCount = invoices.length + 1;
       const invoiceNumber = `INV-${String(invoiceCount).padStart(4, "0")}`;
 
-      console.info("[portal/invoices][perm] addDoc submit (Firestore write)", {
+      console.info("[portal/invoices][perm] POST /api/invoices (server creates + notifies)", {
         ...createChainTraceRef.current,
         formSubmitGatePassed: canUseAddInvoice,
       });
 
-      await addDoc(collection(db, "tenants", tenant.id, "invoices"), {
-        invoiceNumber,
-        clientId: formClientId.trim(),
-        clientName,
-        amount: amountNum,
-        currency: formCurrency.trim().toUpperCase() || "USD",
-        status: "unpaid",
-        dueDate: Timestamp.fromDate(due),
-        notes: formNotes.trim() ? formNotes.trim() : null,
-        source: "manual",
-        createdAt: serverTimestamp(),
+      const token = await user.getIdToken();
+      const res = await fetch("/api/invoices", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          tenantId: tenant.id,
+          clientId: formClientId.trim(),
+          clientName,
+          amount: amountNum,
+          currency: formCurrency.trim().toUpperCase() || "USD",
+          status: "unpaid",
+          dueDate: due.toISOString(),
+          notes: formNotes.trim() ? formNotes.trim() : null,
+          invoiceNumber,
+          source: "manual",
+        }),
       });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(typeof data.error === "string" ? data.error : "Could not create invoice");
+      }
 
       // Reset form
       setFormClientId("");
@@ -351,7 +364,7 @@ export default function InvoicesPage() {
     } catch (err) {
       const code = err && typeof err === "object" && "code" in err ? String((err as { code?: string }).code) : "";
       const message = err instanceof Error ? err.message : String(err);
-      console.error("[portal/invoices][perm] addDoc failed (likely Firestore rules if permission-denied)", {
+      console.error("[portal/invoices][perm] create invoice API failed", {
         code,
         message,
         ...createChainTraceRef.current,
@@ -359,8 +372,8 @@ export default function InvoicesPage() {
         err,
       });
       setFormError(
-        code === "permission-denied"
-          ? "You don’t have permission to create invoices (check Firestore rules and plan permissions), or your role isn’t admin/owner."
+        code === "permission-denied" || message.toLowerCase().includes("not authorized")
+          ? "You don’t have permission to create invoices (check role and plan), or invoicing is disabled for your plan."
           : `Could not create invoice: ${message}`
       );
     } finally {
@@ -476,13 +489,24 @@ export default function InvoicesPage() {
   }
 
   async function handleToggleStatus(inv: Invoice) {
-    if (!tenant?.id) return;
+    if (!tenant?.id || !user) return;
     const newStatus = inv.status === "paid" ? "unpaid" : "paid";
     setUpdatingId(inv.id);
     try {
-      await updateDoc(doc(db, "tenants", tenant.id, "invoices", inv.id), {
-        status: newStatus,
+      const token = await user.getIdToken();
+      const res = await fetch(`/api/invoices/${encodeURIComponent(inv.id)}`, {
+        method: "PATCH",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ tenantId: tenant.id, status: newStatus }),
       });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        alert(typeof data.error === "string" ? data.error : "Could not update status");
+        return;
+      }
       await loadData();
     } finally {
       setUpdatingId(null);
@@ -757,6 +781,14 @@ export default function InvoicesPage() {
                   )}
                 </div>
                 <div className="mt-4 flex flex-wrap gap-2">
+                  {isAdminOrOwner ? (
+                    <Link
+                      href={`/portal/invoices/${inv.id}/edit`}
+                      className="flex-1 min-w-[120px] text-center px-3 py-2 rounded-lg border border-slate-200 text-sm font-medium text-[#0F172A] hover:bg-slate-50"
+                    >
+                      Edit
+                    </Link>
+                  ) : null}
                   <button
                     type="button"
                     disabled={downloadingPdfId === inv.id}
@@ -792,7 +824,7 @@ export default function InvoicesPage() {
               <th className="text-right py-3 px-4 text-sm font-medium text-[#0F172A]">Amount</th>
               <th className="text-left py-3 px-4 text-sm font-medium text-[#0F172A]">Due Date</th>
               <th className="text-left py-3 px-4 text-sm font-medium text-[#0F172A]">Status</th>
-              <th className="text-right">Actions</th>
+              <th className="text-right py-3 px-4 text-sm font-medium text-[#0F172A]">Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -822,27 +854,34 @@ export default function InvoicesPage() {
                 <td className="py-3 px-4">
                   <StatusBadge status={inv.status} />
                 </td>
-                <td className="text-right">
-                  <button
-                    type="button"
-                    disabled={downloadingPdfId === inv.id}
-                    className="text-blue-600 hover:underline disabled:opacity-50 disabled:cursor-not-allowed"
-                    onClick={() => downloadPdf(inv)}
-                  >
-                    {downloadingPdfId === inv.id ? "Downloading…" : "Download PDF"}
-                  </button>
-                  <button
-                    type="button"
-                    disabled={updatingId === inv.id}
-                    onClick={() => handleToggleStatus(inv)}
-                    className="ml-2 text-sm text-[#4F46E5] hover:underline disabled:opacity-50"
-                  >
-                    {updatingId === inv.id
-                      ? "Updating…"
-                      : inv.status === "paid"
-                        ? "Mark Unpaid"
-                        : "Mark Paid"}
-                  </button>
+                <td className="text-right py-3 px-4">
+                  <div className="flex flex-wrap items-center justify-end gap-x-3 gap-y-1">
+                    {isAdminOrOwner ? (
+                      <Link href={`/portal/invoices/${inv.id}/edit`} className="text-sm text-slate-700 hover:underline">
+                        Edit
+                      </Link>
+                    ) : null}
+                    <button
+                      type="button"
+                      disabled={downloadingPdfId === inv.id}
+                      className="text-sm text-blue-600 hover:underline disabled:opacity-50 disabled:cursor-not-allowed"
+                      onClick={() => downloadPdf(inv)}
+                    >
+                      {downloadingPdfId === inv.id ? "Downloading…" : "Download PDF"}
+                    </button>
+                    <button
+                      type="button"
+                      disabled={updatingId === inv.id}
+                      onClick={() => handleToggleStatus(inv)}
+                      className="text-sm text-[#4F46E5] hover:underline disabled:opacity-50"
+                    >
+                      {updatingId === inv.id
+                        ? "Updating…"
+                        : inv.status === "paid"
+                          ? "Mark Unpaid"
+                          : "Mark Paid"}
+                    </button>
+                  </div>
                 </td>
               </tr>
             ))}
