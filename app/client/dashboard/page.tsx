@@ -198,6 +198,7 @@ export default function ClientDashboardPage() {
   const [clientName, setClientName] = useState<string>("");
   const [activeProjects, setActiveProjects] = useState<number>(0);
   const [unpaidInvoices, setUnpaidInvoices] = useState<number>(0);
+  const [unpaidInvoicesTotalLabel, setUnpaidInvoicesTotalLabel] = useState<string | null>(null);
   const [totalInvoices, setTotalInvoices] = useState<number>(0);
   const [recentActivity, setRecentActivity] = useState<RecentActivityItem[]>([]);
   const [clientServicesHealth, setClientServicesHealth] = useState<ClientServicesHealth | null>(null);
@@ -317,7 +318,29 @@ export default function ClientDashboardPage() {
         setLoading(false);
         return;
       }
+      let unpaidTotalAmount = 0;
+      let unpaidCurrency: string | undefined;
+      unpaidSnap.docs.forEach((d) => {
+        const data = d.data() as { amount?: number; currency?: string };
+        if (typeof data.amount === "number") {
+          unpaidTotalAmount += data.amount;
+          if (!unpaidCurrency && typeof data.currency === "string") unpaidCurrency = data.currency;
+        }
+      });
+
       setUnpaidInvoices(unpaidSnap.size);
+      if (unpaidTotalAmount > 0) {
+        const cur = unpaidCurrency ?? "USD";
+        try {
+          setUnpaidInvoicesTotalLabel(
+            new Intl.NumberFormat(undefined, { style: "currency", currency: cur }).format(unpaidTotalAmount)
+          );
+        } catch {
+          setUnpaidInvoicesTotalLabel(`${cur} ${unpaidTotalAmount.toLocaleString()}`);
+        }
+      } else {
+        setUnpaidInvoicesTotalLabel(null);
+      }
 
       let allServicesForHealth: Awaited<ReturnType<typeof getDocs>>;
       try {
@@ -768,38 +791,36 @@ export default function ClientDashboardPage() {
   }
 
   const waitingServicesCount = clientServicesHealth?.counts.waiting_client ?? 0;
-  const actionRows: { id: string; count: number; message: string; href: string; cta: string }[] = [];
+  const actionRows: {
+    id: string;
+    count: number;
+    label: string;
+    amountLabel?: string;
+    href: string;
+  }[] = [];
   if (unpaidInvoices > 0) {
     actionRows.push({
       id: "invoices",
       count: unpaidInvoices,
-      message: `${unpaidInvoices} unpaid invoice${unpaidInvoices === 1 ? "" : "s"}`,
+      label: unpaidInvoices === 1 ? "Unpaid invoice" : "Unpaid invoices",
+      amountLabel: unpaidInvoicesTotalLabel ?? undefined,
       href: "/client/invoices",
-      cta: "View invoices",
     });
   }
   if (waitingServicesCount > 0) {
     actionRows.push({
       id: "services",
       count: waitingServicesCount,
-      message:
-        waitingServicesCount === 1
-          ? "1 service needs your input"
-          : `${waitingServicesCount} services need your input`,
+      label: waitingServicesCount === 1 ? "Service needs your input" : "Services need your input",
       href: "/client/services",
-      cta: "View services",
     });
   }
   if (waitingTicketsCount > 0) {
     actionRows.push({
       id: "tickets",
       count: waitingTicketsCount,
-      message:
-        waitingTicketsCount === 1
-          ? "1 ticket awaiting your reply"
-          : `${waitingTicketsCount} tickets awaiting your reply`,
+      label: waitingTicketsCount === 1 ? "Ticket awaiting reply" : "Tickets awaiting reply",
       href: "/client/support",
-      cta: "Open support",
     });
   }
 
@@ -809,18 +830,21 @@ export default function ClientDashboardPage() {
       <p className="text-slate-600 mt-1 break-words">{clientName}</p>
 
       <section
-        className="mt-6 rounded-2xl border border-amber-200/80 bg-gradient-to-b from-amber-50/90 to-white shadow-sm overflow-hidden max-w-full min-w-0"
+        className="mt-6 rounded-2xl border border-amber-300/80 bg-gradient-to-b from-amber-50/100 to-white shadow-sm overflow-hidden max-w-full min-w-0"
         aria-labelledby="action-required-heading"
       >
-        <div className="px-4 py-3 sm:px-5 border-b border-amber-200/60 bg-amber-50/80">
-          <h2 id="action-required-heading" className="text-[#0F172A] text-base font-semibold">
+        <div className="px-4 py-3 sm:px-5 border-b border-amber-200/70 bg-amber-50/90">
+          <h2 id="action-required-heading" className="text-[#0F172A] text-lg font-extrabold tracking-tight">
+            <span aria-hidden className="mr-2">
+              ⚠️
+            </span>
             Action Required
           </h2>
         </div>
         <div className="p-4 sm:p-5">
           {actionRows.length === 0 ? (
             <p className="text-sm text-slate-600 text-center sm:text-left py-2">
-              Nothing needs your attention right now
+              All good — nothing needs your attention
             </p>
           ) : (
             <ul className="space-y-3 list-none p-0 m-0">
@@ -828,22 +852,31 @@ export default function ClientDashboardPage() {
                 <li key={row.id} className="min-w-0">
                   <Link
                     href={row.href}
-                    aria-label={`${row.message}. ${row.cta}`}
-                    className="flex flex-col gap-3 rounded-xl border border-slate-200/90 bg-white px-4 py-3.5 min-h-[3rem] shadow-sm hover:border-indigo-200 hover:bg-indigo-50/40 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#4F46E5] focus-visible:ring-offset-2 sm:flex-row sm:items-center sm:justify-between sm:gap-4"
+                    aria-label={`${row.count} ${row.label}${row.amountLabel ? ` — ${row.amountLabel} total` : ""}. Tap to view`}
+                    className="group flex flex-col gap-3 rounded-xl border border-amber-200/80 bg-white px-4 py-4 min-h-[3.25rem] shadow-sm hover:border-amber-300 hover:bg-amber-50/60 transition-colors cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-[#4F46E5] focus-visible:ring-offset-2 sm:flex-row sm:items-center sm:justify-between sm:gap-4"
                   >
                     <div className="flex items-start gap-3 min-w-0 flex-1">
                       <span
-                        className="shrink-0 flex h-10 min-w-[2.5rem] items-center justify-center rounded-lg bg-amber-100 text-amber-950 text-base font-bold tabular-nums px-2"
+                        className="shrink-0 flex h-12 w-12 items-center justify-center rounded-xl bg-amber-100 text-amber-950 text-3xl font-extrabold tabular-nums px-2"
                         aria-hidden
                       >
                         {row.count}
                       </span>
-                      <span className="text-[#0F172A] font-medium text-sm sm:text-base leading-snug break-words min-w-0 pt-1.5 sm:pt-1">
-                        {row.message}
-                      </span>
+                      <div className="min-w-0 flex-1 pt-0.5 sm:pt-0">
+                        <p className="text-[#0F172A] font-semibold text-sm sm:text-base leading-snug break-words">
+                          {row.label}
+                          {row.amountLabel ? (
+                            <span className="text-amber-800 font-semibold"> — {row.amountLabel} total</span>
+                          ) : null}
+                        </p>
+                        <p className="mt-1 text-xs sm:text-sm font-medium text-amber-900/70">Tap to view</p>
+                      </div>
                     </div>
-                    <span className="w-full sm:w-auto shrink-0 inline-flex items-center justify-center min-h-11 rounded-xl bg-[#4F46E5] px-4 py-2.5 text-sm font-semibold text-white sm:min-h-0 sm:bg-transparent sm:text-indigo-600 sm:px-3 sm:py-2 sm:font-semibold sm:hover:underline">
-                      {row.cta}
+                    <span
+                      className="shrink-0 inline-flex items-center justify-center min-h-9 rounded-lg bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-900 group-hover:bg-amber-100 transition-colors"
+                      aria-hidden
+                    >
+                      -&gt;
                     </span>
                   </Link>
                 </li>
@@ -871,21 +904,28 @@ export default function ClientDashboardPage() {
                 <li key={item.id} className="min-w-0">
                   <Link
                     href={item.href}
-                    className="flex flex-col gap-2 py-4 first:pt-0 last:pb-0 sm:flex-row sm:items-start sm:gap-6 sm:py-3.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#4F46E5] focus-visible:ring-inset rounded-lg -mx-1 px-1 hover:bg-slate-50/80 transition-colors"
+                    className="group flex flex-col gap-3 py-4 first:pt-0 last:pb-0 sm:flex-row sm:items-start sm:gap-6 sm:py-3.5 rounded-xl -mx-1 px-1 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#4F46E5] focus-visible:ring-inset hover:bg-slate-50/80 transition-colors"
                   >
-                    <time
-                      dateTime={new Date(item.atMs).toISOString()}
-                      className="text-sm font-semibold text-slate-700 tabular-nums shrink-0 sm:w-28 sm:pt-0.5"
-                    >
-                      {item.dateLabel}
-                    </time>
-                    <div className="min-w-0 flex-1 space-y-0.5">
+                    <div className="flex items-start gap-3 sm:w-28 sm:flex-none sm:pt-0.5">
+                      <span
+                        className="mt-2 h-2.5 w-2.5 rounded-full bg-indigo-600 ring-4 ring-indigo-100/70"
+                        aria-hidden
+                      />
+                      <time
+                        dateTime={new Date(item.atMs).toISOString()}
+                        className="text-sm font-semibold text-slate-800 tabular-nums"
+                      >
+                        <span className="inline-flex items-center gap-1 text-slate-500">
+                          <span aria-hidden>📅</span>
+                          {item.dateLabel}
+                        </span>
+                      </time>
+                    </div>
+                    <div className="min-w-0 flex-1 space-y-1">
                       <p className="text-[#0F172A] text-sm sm:text-base font-medium leading-snug break-words">
                         {item.label}
-                        {item.amountLabel ? (
-                          <span className="text-slate-600 font-normal"> ({item.amountLabel})</span>
-                        ) : null}
                       </p>
+                      {item.amountLabel ? <p className="text-sm text-slate-600">({item.amountLabel})</p> : null}
                     </div>
                   </Link>
                 </li>
@@ -897,16 +937,16 @@ export default function ClientDashboardPage() {
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-6">
         <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-5 min-w-0">
-          <div className="text-xs uppercase tracking-wide text-slate-500">Active Projects</div>
-          <div className="text-2xl font-semibold text-[#0F172A] mt-1">{activeProjects}</div>
+          <div className="text-[11px] uppercase tracking-widest text-slate-500 font-semibold">Active Projects</div>
+          <div className="text-xl font-semibold text-slate-700 mt-2">{activeProjects}</div>
         </div>
         <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-5 min-w-0">
-          <div className="text-xs uppercase tracking-wide text-red-600">Unpaid Invoices</div>
-          <div className="text-2xl font-semibold text-[#0F172A] mt-1">{unpaidInvoices}</div>
+          <div className="text-[11px] uppercase tracking-widest text-red-600 font-semibold">Unpaid Invoices</div>
+          <div className="text-xl font-semibold text-slate-700 mt-2">{unpaidInvoices}</div>
         </div>
         <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-5 min-w-0">
-          <div className="text-xs uppercase tracking-wide text-slate-500">Total Invoices</div>
-          <div className="text-2xl font-semibold text-[#0F172A] mt-1">{totalInvoices}</div>
+          <div className="text-[11px] uppercase tracking-widest text-slate-500 font-semibold">Total Invoices</div>
+          <div className="text-xl font-semibold text-slate-700 mt-2">{totalInvoices}</div>
         </div>
       </div>
 
@@ -916,10 +956,7 @@ export default function ClientDashboardPage() {
             <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 min-w-0">
               <div className="min-w-0">
                 <h2 className="text-[#0F172A] text-lg font-semibold tracking-tight">Your services</h2>
-                <p className="text-sm text-slate-600 mt-1 max-w-2xl leading-relaxed">
-                  A simple snapshot of how your managed services are doing. We update this as our team works — plain
-                  language, no guesswork. If we need something from you, you&apos;ll see it called out clearly.
-                </p>
+                <p className="text-sm text-slate-600 mt-1 max-w-2xl leading-relaxed">Quick overview of your services.</p>
               </div>
               <Link
                 href="/client/services"
