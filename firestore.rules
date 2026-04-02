@@ -90,10 +90,26 @@ service cloud.firestore {
       return exists(utPath) ? get(utPath).data.role : null;
     }
 
-    // Helper function to check if user is admin or owner
+    // Staff admin/owner from userTenants/{uid}_{tenantId} (case-insensitive; strict == failed for "Owner", etc.).
     function isAdminOrOwner(tenantId) {
       let role = getUserRole(tenantId);
-      return role == "admin" || role == "owner";
+      return role is string && (role.lower() == "admin" || role.lower() == "owner");
+    }
+
+    // Fallback when userTenants map is missing/stale but users/{uid} is source of truth for portal staff (tenantId + role).
+    // Clients never match (users.role must be admin|owner, case-insensitive). Composed into isStaffAdminOrOwnerForTenant for invoices.
+    function isPortalOwnerOrAdminFromUsersDoc(tenantId) {
+      return request.auth != null
+        && exists(/databases/$(db)/documents/users/$(request.auth.uid))
+        && get(/databases/$(db)/documents/users/$(request.auth.uid)).data.tenantId == tenantId
+        && get(/databases/$(db)/documents/users/$(request.auth.uid)).data.role is string
+        && (get(/databases/$(db)/documents/users/$(request.auth.uid)).data.role.lower() == "admin"
+            || get(/databases/$(db)/documents/users/$(request.auth.uid)).data.role.lower() == "owner");
+    }
+
+    // Staff admin/owner for tenant: userTenants map OR users/{uid} (portal). Used for invoice create/update/delete.
+    function isStaffAdminOrOwnerForTenant(tenantId) {
+      return isAdminOrOwner(tenantId) || isPortalOwnerOrAdminFromUsersDoc(tenantId);
     }
 
     // Helper function to check if user is client
@@ -153,10 +169,19 @@ service cloud.firestore {
       }
 
       // Explicit: tenants/{tenantId}/invoices/{invoiceId}
+      //
+      // CREATE (manual addDoc from portal):
+      // OLD (failed in prod for some owners): (hasTenantAccess||legacy) && isAdminOrOwner(tenantId) && tenantPlanAllows...
+      //   where isAdminOrOwner used role == "admin" || role == "owner" (case-sensitive on userTenants only).
+      // NEW: same access + plan gate for create; staff identity is isStaffAdminOrOwnerForTenant(tenantId) :=
+      //   isAdminOrOwner (case-insensitive userTenants.role) OR isPortalOwnerOrAdminFromUsersDoc (users/{uid}.role
+      //   admin|owner for this tenantId). Update/delete use the same staff check. Clients remain blocked.
+      // No request.resource shape checks — portal sends invoiceNumber, clientId, clientName, amount, currency, status,
+      // dueDate, notes, source, createdAt; rules do not require extra fields.
       match /invoices/{invoiceId} {
         allow read, list: if isTenantUser(tenantId) || (isClientWithTenantAccess(tenantId) && resource.data.clientId == getClientIdFromUser());
-        allow update, delete: if (hasTenantAccess(tenantId) || hasTenantAccessLegacy()) && isAdminOrOwner(tenantId);
-        allow create: if (hasTenantAccess(tenantId) || hasTenantAccessLegacy()) && isAdminOrOwner(tenantId)
+        allow update, delete: if (hasTenantAccess(tenantId) || hasTenantAccessLegacy()) && isStaffAdminOrOwnerForTenant(tenantId);
+        allow create: if (hasTenantAccess(tenantId) || hasTenantAccessLegacy()) && isStaffAdminOrOwnerForTenant(tenantId)
           && tenantPlanAllowsInvoiceCreate(tenantId);
       }
 
