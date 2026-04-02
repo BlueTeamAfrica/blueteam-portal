@@ -273,10 +273,15 @@ export default function ClientServiceDetailPage() {
         },
         body: JSON.stringify({ tenantId: tid, message: responseText }),
       });
-      const data = (await res.json().catch(() => ({}))) as { error?: string };
+      const data = (await res.json().catch(() => ({}))) as {
+        error?: string;
+        debug?: { role?: string | null };
+      };
       if (!res.ok) {
         const r = (role ?? "").toLowerCase();
-        const staffPortal = r === "owner" || r === "admin";
+        const debugRole = String(data.debug?.role ?? "").toLowerCase();
+        const staffPortal =
+          r === "owner" || r === "admin" || debugRole === "owner" || debugRole === "admin";
         const clientForbidden = "You do not have permission to respond to this request.";
         let errMsg =
           data.error ??
