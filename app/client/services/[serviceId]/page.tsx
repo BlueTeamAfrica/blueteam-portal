@@ -440,11 +440,6 @@ export default function ClientServiceDetailPage() {
                   {respondError}
                 </div>
               ) : null}
-              {respondSuccess ? (
-                <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-900 break-words">
-                  {respondSuccess}
-                </div>
-              ) : null}
               <label htmlFor="client-service-response" className="sr-only">
                 Your response
               </label>
@@ -603,4 +598,3 @@ export default function ClientServiceDetailPage() {
     </div>
   );
 }
-
