@@ -26,6 +26,33 @@ export const CLIENT_VISIBLE_INVOICE_FIELDS = [
 
 export type ClientVisibleInvoiceField = (typeof CLIENT_VISIBLE_INVOICE_FIELDS)[number];
 
+/**
+ * Raw value used for hashing so absent fields match “empty” equivalents (e.g. no lineItems vs []).
+ */
+function rawClientVisibleField(
+  data: Record<string, unknown> | null | undefined,
+  k: ClientVisibleInvoiceField
+): unknown {
+  if (!data) {
+    if (k === "lineItems") return [];
+    if (k === "notes" || k === "title" || k === "number" || k === "issueDate" || k === "dueDate") {
+      return null;
+    }
+    return undefined;
+  }
+
+  if (k === "lineItems") {
+    return Array.isArray(data.lineItems) ? data.lineItems : [];
+  }
+
+  if (k === "notes" || k === "title" || k === "number" || k === "issueDate" || k === "dueDate") {
+    return k in data ? data[k] : null;
+  }
+
+  if (!(k in data)) return undefined;
+  return data[k];
+}
+
 function normalizeForSignature(value: unknown): unknown {
   if (value === undefined) return null;
   if (value === null) return null;
@@ -76,8 +103,15 @@ export function clientVisibleInvoiceSignature(data: Record<string, unknown> | nu
   }
   const picked: Record<string, unknown> = {};
   for (const k of CLIENT_VISIBLE_INVOICE_FIELDS) {
-    if (!(k in data)) continue;
-    picked[k] = normalizeForSignature(data[k]);
+    const raw = rawClientVisibleField(data, k);
+    if (raw === undefined) continue;
+    const norm =
+      k === "notes" && typeof raw === "string" && raw.trim() === ""
+        ? null
+        : k === "title" && typeof raw === "string" && raw.trim() === ""
+          ? null
+          : raw;
+    picked[k] = normalizeForSignature(norm);
   }
   return createHash("sha256").update(stableStringify(picked)).digest("hex");
 }

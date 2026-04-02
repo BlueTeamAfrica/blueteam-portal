@@ -135,22 +135,25 @@ export default function EditInvoicePage() {
       return;
     }
 
-    const linePayload = lines
-      .filter((r) => r.description.trim())
-      .map((r) => {
+    setSaving(true);
+    setError(null);
+    try {
+      const linePayload: Array<{ description: string; amount: number; currency?: string }> = [];
+      for (const r of lines) {
+        if (!r.description.trim()) continue;
         const a = Number.parseFloat(r.amount);
-        if (!Number.isFinite(a)) throw new Error("Each line item needs a valid amount");
+        if (!Number.isFinite(a)) {
+          setError("Each line item with a description needs a valid amount.");
+          return;
+        }
         const o: { description: string; amount: number; currency?: string } = {
           description: r.description.trim(),
           amount: a,
         };
         if (r.currency.trim()) o.currency = r.currency.trim().toUpperCase();
-        return o;
-      });
+        linePayload.push(o);
+      }
 
-    setSaving(true);
-    setError(null);
-    try {
       const token = await user.getIdToken();
       const body: Record<string, unknown> = {
         tenantId: tenant.id,
