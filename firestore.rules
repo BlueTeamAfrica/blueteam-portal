@@ -21,6 +21,14 @@ service cloud.firestore {
       return permissions.data;
     }
 
+    // Invoice create: allow when planPermissions doc is missing OR canInvoices is not explicitly false.
+    // (Avoids get() on a missing planPermissions doc, which would deny all creates.)
+    function tenantPlanAllowsInvoiceCreate(tenantId) {
+      let billingPlanId = getBillingPlanId(tenantId);
+      let permPath = /databases/$(db)/documents/tenants/$(tenantId)/planPermissions/$(billingPlanId);
+      return !exists(permPath) || get(permPath).data.canInvoices != false;
+    }
+
     // Helper function to check if user has access to tenant
     function hasTenantAccess(tenantId) {
       return request.auth != null
@@ -125,7 +133,7 @@ service cloud.firestore {
         allow read, list: if isTenantUser(tenantId) || (isClientWithTenantAccess(tenantId) && resource.data.clientId == getClientIdFromUser());
         allow update, delete: if (hasTenantAccess(tenantId) || hasTenantAccessLegacy()) && isAdminOrOwner(tenantId);
         allow create: if (hasTenantAccess(tenantId) || hasTenantAccessLegacy()) && isAdminOrOwner(tenantId)
-          && getPlanPermissions(tenantId).canInvoices != false;
+          && tenantPlanAllowsInvoiceCreate(tenantId);
       }
 
       // Explicit: tenants/{tenantId}/subscriptions/{subId}

@@ -222,7 +222,8 @@ export default function ClientInvoicesPage() {
               return (
               <li
                 key={inv.id}
-                className={`rounded-2xl border p-4 shadow-sm min-w-0 ${
+                id={`invoice-${inv.id}`}
+                className={`scroll-mt-24 rounded-2xl border p-4 shadow-sm min-w-0 ${
                   emphasis === "Unpaid"
                     ? "border-rose-200 bg-rose-50/20"
                     : emphasis === "Overdue"
@@ -281,7 +282,8 @@ export default function ClientInvoicesPage() {
                     return (
                     <tr
                       key={inv.id}
-                      className={`border-b border-slate-100 last:border-0 ${
+                      id={`invoice-${inv.id}`}
+                      className={`scroll-mt-24 border-b border-slate-100 last:border-0 ${
                         emphasis === "Unpaid"
                           ? "bg-rose-50/20"
                           : emphasis === "Overdue"

@@ -14,6 +14,14 @@ const transporter = nodemailer.createTransport({
   auth: { user, pass },
 });
 
+function portalBaseUrl() {
+  return (
+    process.env.NEXT_PUBLIC_PORTAL_URL ||
+    process.env.PORTAL_BASE_URL ||
+    "https://portal.blueteamafrica.com"
+  ).replace(/\/$/, "");
+}
+
 export async function sendAdminInvoiceEmail({
   to,
   tenantName,
@@ -30,12 +38,7 @@ export async function sendAdminInvoiceEmail({
   // Verify SMTP connection (prints useful errors if blocked)
   await transporter.verify();
 
-  const portalBase =
-    (process.env.NEXT_PUBLIC_PORTAL_URL ||
-      process.env.PORTAL_BASE_URL ||
-      "https://portal.blueteamafrica.com").replace(/\/$/, "");
-
-  const loginUrl = `${portalBase}/login`;
+  const loginUrl = `${portalBaseUrl()}/login`;
 
   console.log("EMAIL DEBUG:", { to, subject: "Invoices Generated", loginUrl, hasHtml: true });
 
@@ -101,19 +104,16 @@ export async function sendClientInvoicesEmail({
 }) {
   await transporter.verify();
 
-  // Set PORTAL_BASE_URL in Vercel Production (e.g. https://portal.blueteamafrica.com) for correct links
-  const base = (process.env.PORTAL_BASE_URL || "https://portal.blueteamafrica.com").replace(
-    /\/$/,
-    ""
-  );
-  const pdfUrl = (id: string) => `${base}/api/invoices/${id}/pdf`;
+  const base = portalBaseUrl();
+  const clientInvoicesUrl = `${base}/client/invoices`;
+  const invoicePortalUrl = (invoiceId: string) => `${base}/client/invoices#invoice-${invoiceId}`;
 
   const subject = `New invoice(s) available – ${tenantName}`;
 
   const lines = items
     .map(
       (i) =>
-        `- ${i.invoiceLabel} | ${i.currency} ${i.amount} | Due: ${i.dueDate}\n  PDF: <${pdfUrl(i.invoiceId)}>`
+        `- ${i.invoiceLabel} | ${i.currency} ${i.amount} | Due: ${i.dueDate}\n  View in portal: ${invoicePortalUrl(i.invoiceId)}`
     )
     .join("\n");
 
@@ -121,15 +121,16 @@ export async function sendClientInvoicesEmail({
     `Hello ${clientName},\n\n` +
     `New invoice(s) have been generated for you by ${tenantName}:\n\n` +
     `${lines}\n\n` +
-    `Please login to the client portal to view details.\n\n` +
+    `Sign in to the client portal to open your invoices and download PDFs (PDF download requires you to be logged in).\n` +
+    `All invoices: ${clientInvoicesUrl}\n\n` +
     `— Blue Team Portal\n`;
 
   const htmlItems = items
     .map(
       (i) => `
   <li style="margin-bottom:10px;">
-    <div><strong>${i.invoiceLabel}</strong> — ${i.currency} ${i.amount} — Due: ${i.dueDate}</div>
-    <div><a href="${pdfUrl(i.invoiceId)}">Download PDF</a></div>
+    <div><strong>${escapeHtml(i.invoiceLabel)}</strong> — ${escapeHtml(String(i.currency))} ${escapeHtml(String(i.amount))} — Due: ${escapeHtml(i.dueDate)}</div>
+    <div><a href="${invoicePortalUrl(i.invoiceId)}">View invoice in portal</a> <span style="color:#64748b;font-size:12px;">(sign in to download PDF)</span></div>
   </li>
 `
     )
@@ -143,25 +144,21 @@ export async function sendClientInvoicesEmail({
     text,
     html: `
   <div style="font-family: Arial, sans-serif; line-height: 1.6;">
-    <p>Hello ${clientName},</p>
-    <p>New invoice(s) have been generated for you by ${tenantName}:</p>
+    <p>Hello ${escapeHtml(clientName)},</p>
+    <p>New invoice(s) have been generated for you by ${escapeHtml(tenantName)}:</p>
     <ul>${htmlItems}</ul>
     <p>
-      <a href="${base}/login">Login to the portal</a>
+      <a href="${clientInvoicesUrl}" style="display:inline-block;padding:10px 16px;background:#4f46e5;color:#fff;text-decoration:none;border-radius:8px;font-weight:600;">Open My Invoices</a>
+    </p>
+    <p style="font-size:13px;color:#64748b;">PDFs are available after you sign in — use Download PDF on the invoice row.</p>
+    <p>
+      <a href="${base}/login">Sign in to the portal</a>
     </p>
   </div>
 `,
   });
 
   return info;
-}
-
-function portalBaseUrl() {
-  return (
-    process.env.NEXT_PUBLIC_PORTAL_URL ||
-    process.env.PORTAL_BASE_URL ||
-    "https://portal.blueteamafrica.com"
-  ).replace(/\/$/, "");
 }
 
 /** overdue_invoice — client portal automation */

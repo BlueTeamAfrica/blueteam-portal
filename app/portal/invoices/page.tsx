@@ -37,6 +37,7 @@ export default function InvoicesPage() {
   const [formDueDate, setFormDueDate] = useState("");
   const [formNotes, setFormNotes] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
 
   // Status update loading
   const [updatingId, setUpdatingId] = useState<string | null>(null);
@@ -127,10 +128,33 @@ export default function InvoicesPage() {
   async function handleAddInvoice(e: React.FormEvent) {
     e.preventDefault();
     if (!tenant?.id) return;
-    if (!formClientId || !formAmount || !formDueDate) return;
 
-    const selectedClient = clients.find((c) => c.id === formClientId);
-    const clientName = selectedClient?.name ?? selectedClient?.email ?? "";
+    setFormError(null);
+
+    if (!formClientId.trim() || !formAmount.trim() || !formDueDate) {
+      setFormError("Please select a client, amount, and due date.");
+      return;
+    }
+
+    const amountNum = Number.parseFloat(formAmount);
+    if (!Number.isFinite(amountNum) || amountNum < 0) {
+      setFormError("Please enter a valid amount (0 or more).");
+      return;
+    }
+
+    const selectedClient = clients.find((c) => c.id === formClientId.trim());
+    if (!selectedClient) {
+      setFormError("Selected client is no longer in the list. Refresh and try again.");
+      return;
+    }
+    const clientName =
+      selectedClient.name?.trim() || selectedClient.email?.trim() || selectedClient.id;
+
+    const due = new Date(formDueDate);
+    if (Number.isNaN(due.getTime())) {
+      setFormError("Please enter a valid due date.");
+      return;
+    }
 
     setSubmitting(true);
     try {
@@ -139,13 +163,14 @@ export default function InvoicesPage() {
 
       await addDoc(collection(db, "tenants", tenant.id, "invoices"), {
         invoiceNumber,
-        clientId: formClientId,
+        clientId: formClientId.trim(),
         clientName,
-        amount: parseFloat(formAmount),
-        currency: formCurrency,
+        amount: amountNum,
+        currency: formCurrency.trim().toUpperCase() || "USD",
         status: "unpaid",
-        dueDate: Timestamp.fromDate(new Date(formDueDate)),
-        notes: formNotes.trim() || null,
+        dueDate: Timestamp.fromDate(due),
+        notes: formNotes.trim() ? formNotes.trim() : null,
+        source: "manual",
         createdAt: serverTimestamp(),
       });
 
@@ -159,6 +184,15 @@ export default function InvoicesPage() {
 
       // Refresh list
       await loadData();
+    } catch (err) {
+      const code = err && typeof err === "object" && "code" in err ? String((err as { code?: string }).code) : "";
+      const message = err instanceof Error ? err.message : String(err);
+      console.error("[portal/invoices] addDoc failed", { code, message, err });
+      setFormError(
+        code === "permission-denied"
+          ? "You don’t have permission to create invoices (check Firestore rules and plan permissions), or your role isn’t admin/owner."
+          : `Could not create invoice: ${message}`
+      );
     } finally {
       setSubmitting(false);
     }
@@ -402,7 +436,10 @@ export default function InvoicesPage() {
           </div>
           <button
             type="button"
-            onClick={() => setShowForm((v) => !v)}
+            onClick={() => {
+              setFormError(null);
+              setShowForm((v) => !v);
+            }}
             className="px-3 py-2 sm:px-4 rounded-lg bg-[#4F46E5] text-white text-sm font-medium hover:bg-indigo-600 transition-colors whitespace-nowrap"
           >
             ➕ Add Invoice
@@ -415,6 +452,11 @@ export default function InvoicesPage() {
           onSubmit={handleAddInvoice}
           className="mt-4 md:mt-6 bg-white rounded-xl shadow-sm border border-slate-200 p-4 md:p-6 space-y-4 max-w-full"
         >
+          {formError ? (
+            <div className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-800" role="alert">
+              {formError}
+            </div>
+          ) : null}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-1">
               <label className={PORTAL_SELECT_LABEL_CLASS}>Client *</label>
