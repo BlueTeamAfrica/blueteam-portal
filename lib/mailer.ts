@@ -155,3 +155,183 @@ export async function sendClientInvoicesEmail({
 
   return info;
 }
+
+function portalBaseUrl() {
+  return (
+    process.env.NEXT_PUBLIC_PORTAL_URL ||
+    process.env.PORTAL_BASE_URL ||
+    "https://portal.blueteamafrica.com"
+  ).replace(/\/$/, "");
+}
+
+/** overdue_invoice — client portal automation */
+export async function sendClientOverdueInvoiceEmail({
+  to,
+  clientName,
+  tenantName,
+  invoiceNumber,
+  amountLabel,
+  dueDateLabel,
+}: {
+  to: string;
+  clientName: string;
+  tenantName: string;
+  invoiceNumber: string;
+  amountLabel: string;
+  dueDateLabel: string;
+}) {
+  await transporter.verify();
+  const base = portalBaseUrl();
+  const invoicesUrl = `${base}/client/invoices`;
+  const subject = `Invoice overdue — ${tenantName}`;
+  const text = [
+    `Hello ${clientName},`,
+    ``,
+    `An invoice is now overdue:`,
+    ``,
+    `Invoice: ${invoiceNumber}`,
+    `Amount: ${amountLabel}`,
+    `Due date: ${dueDateLabel}`,
+    ``,
+    `View your invoices in the client portal:`,
+    invoicesUrl,
+    ``,
+    `— ${tenantName}`,
+  ].join("\n");
+
+  const info = await transporter.sendMail({
+    from: `"Blue Team Portal" <${user}>`,
+    replyTo: user ?? undefined,
+    to,
+    subject,
+    text,
+    html: `
+  <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #0f172a;">
+    <p>Hello ${escapeHtml(clientName)},</p>
+    <p><strong>An invoice is now overdue.</strong></p>
+    <table style="border-collapse: collapse; margin: 12px 0;">
+      <tr><td style="padding: 4px 12px 4px 0; color: #64748b;">Invoice</td><td style="padding: 4px 0;"><strong>${escapeHtml(invoiceNumber)}</strong></td></tr>
+      <tr><td style="padding: 4px 12px 4px 0; color: #64748b;">Amount</td><td style="padding: 4px 0;">${escapeHtml(amountLabel)}</td></tr>
+      <tr><td style="padding: 4px 12px 4px 0; color: #64748b;">Due date</td><td style="padding: 4px 0;">${escapeHtml(dueDateLabel)}</td></tr>
+    </table>
+    <p>
+      <a href="${invoicesUrl}" style="display:inline-block;padding:10px 16px;background:#4f46e5;color:#fff;text-decoration:none;border-radius:8px;font-weight:600;">Open invoices</a>
+    </p>
+    <p style="font-size: 12px; color: #64748b;">${escapeHtml(tenantName)}</p>
+  </div>`,
+  });
+  return info;
+}
+
+/** service_waiting_client — client portal automation */
+export async function sendClientServiceWaitingEmail({
+  to,
+  clientName,
+  tenantName,
+  serviceName,
+  healthNote,
+  nextAction,
+  serviceUrl,
+}: {
+  to: string;
+  clientName: string;
+  tenantName: string;
+  serviceName: string;
+  healthNote: string;
+  nextAction: string;
+  serviceUrl: string;
+}) {
+  await transporter.verify();
+  const subject = `Action needed — ${serviceName}`;
+  const noteBlock = healthNote.trim()
+    ? `\n\nNote from the team:\n${healthNote}`
+    : "";
+  const actionBlock = nextAction.trim() ? `\n\nNext step: ${nextAction}` : "";
+  const text = [
+    `Hello ${clientName},`,
+    ``,
+    `We need your input on: ${serviceName}.${actionBlock}${noteBlock}`,
+    ``,
+    `Open the service in your client portal:`,
+    serviceUrl,
+    ``,
+    `— ${tenantName}`,
+  ].join("\n");
+
+  const info = await transporter.sendMail({
+    from: `"Blue Team Portal" <${user}>`,
+    replyTo: user ?? undefined,
+    to,
+    subject,
+    text,
+    html: `
+  <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #0f172a;">
+    <p>Hello ${escapeHtml(clientName)},</p>
+    <p><strong>We need your input</strong> on <strong>${escapeHtml(serviceName)}</strong>.</p>
+    ${nextAction.trim() ? `<p><strong>Next step:</strong> ${escapeHtml(nextAction)}</p>` : ""}
+    ${healthNote.trim() ? `<p style="margin-top:12px;padding:12px;background:#f8fafc;border-radius:8px;border:1px solid #e2e8f0;"><strong>Note:</strong> ${escapeHtml(healthNote)}</p>` : ""}
+    <p>
+      <a href="${serviceUrl}" style="display:inline-block;padding:10px 16px;background:#4f46e5;color:#fff;text-decoration:none;border-radius:8px;font-weight:600;">View service</a>
+    </p>
+    <p style="font-size: 12px; color: #64748b;">${escapeHtml(tenantName)}</p>
+  </div>`,
+  });
+  return info;
+}
+
+/** support_waiting_client — client portal automation */
+export async function sendClientSupportReplyWaitingEmail({
+  to,
+  clientName,
+  tenantName,
+  ticketSubject,
+  ticketUrl,
+}: {
+  to: string;
+  clientName: string;
+  tenantName: string;
+  ticketSubject: string;
+  ticketUrl: string;
+}) {
+  await transporter.verify();
+  const subject = `Reply needed — support ticket`;
+  const text = [
+    `Hello ${clientName},`,
+    ``,
+    `We're waiting on your reply for this support ticket:`,
+    ``,
+    `${ticketSubject}`,
+    ``,
+    `Open the ticket:`,
+    ticketUrl,
+    ``,
+    `— ${tenantName}`,
+  ].join("\n");
+
+  const info = await transporter.sendMail({
+    from: `"Blue Team Portal" <${user}>`,
+    replyTo: user ?? undefined,
+    to,
+    subject,
+    text,
+    html: `
+  <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #0f172a;">
+    <p>Hello ${escapeHtml(clientName)},</p>
+    <p><strong>We're waiting on your reply</strong> for this support ticket:</p>
+    <p style="padding:12px;background:#f0f9ff;border-radius:8px;border:1px solid #bae6fd;"><strong>${escapeHtml(ticketSubject)}</strong></p>
+    <p>
+      <a href="${ticketUrl}" style="display:inline-block;padding:10px 16px;background:#4f46e5;color:#fff;text-decoration:none;border-radius:8px;font-weight:600;">Open ticket</a>
+    </p>
+    <p style="font-size: 12px; color: #64748b;">${escapeHtml(tenantName)}</p>
+  </div>`,
+  });
+  return info;
+}
+
+function escapeHtml(s: string) {
+  return s
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
