@@ -75,40 +75,94 @@ export default function InvoicesPage() {
 
   const [sendingTestEmail, setSendingTestEmail] = useState(false);
 
-  const isAdminOrOwner = isAdminOrOwnerRole(role);
+  /** Same document Firestore rules use: userTenants/{uid}_{tenantId}.role */
+  const [membershipRoleFromUt, setMembershipRoleFromUt] = useState<string | undefined>(undefined);
+  const isAdminOrOwner =
+    isAdminOrOwnerRole(role) || isAdminOrOwnerRole(membershipRoleFromUt);
   const [invoiceCreateAllowed, setInvoiceCreateAllowed] = useState(false);
   const [invoicePermResolved, setInvoicePermResolved] = useState(false);
 
   const billingPlanId = useMemo(() => getBillingPlanIdFromTenant(tenant), [tenant]);
 
   useEffect(() => {
-    if (!tenant?.id) {
+    if (!tenant?.id || !user?.uid) {
+      setMembershipRoleFromUt(undefined);
       setInvoiceCreateAllowed(false);
       setInvoicePermResolved(false);
       return;
     }
-    if (!isAdminOrOwner) {
-      setInvoiceCreateAllowed(false);
-      setInvoicePermResolved(true);
+    if (tenantCtxLoading) {
       return;
     }
 
     let alive = true;
     setInvoicePermResolved(false);
 
+    const uid = user.uid;
+    const tid = tenant.id;
+    const planId = billingPlanId;
+
     (async () => {
       try {
-        const permRef = doc(db, "tenants", tenant.id, "planPermissions", billingPlanId);
-        const snap = await getDoc(permRef);
-        const allowed = !snap.exists() || snap.data()?.canInvoices !== false;
+        const utPath = `${uid}_${tid}`;
+        const [userSnap, utSnap, permSnap] = await Promise.all([
+          getDoc(doc(db, "users", uid)),
+          getDoc(doc(db, "userTenants", utPath)),
+          getDoc(doc(db, "tenants", tid, "planPermissions", planId)),
+        ]);
+
+        const userDocRole = userSnap.exists() ? userSnap.data()?.role : undefined;
+        const utRoleRaw = utSnap.exists() ? utSnap.data()?.role : undefined;
+        const utRole = typeof utRoleRaw === "string" ? utRoleRaw : undefined;
+        const permData = permSnap.exists() ? permSnap.data() : null;
+        const canInvoicesResolved = !permSnap.exists() || permData?.canInvoices !== false;
+        const isAdminCtx = isAdminOrOwnerRole(role);
+        const isAdminUt = isAdminOrOwnerRole(utRole);
+        const isAdminCombined = isAdminCtx || isAdminUt;
+
         if (alive) {
-          setInvoiceCreateAllowed(allowed);
-          setInvoicePermResolved(true);
+          setMembershipRoleFromUt(utRole);
         }
-      } catch (e) {
-        console.warn("[portal/invoices] planPermissions read failed", e);
-        if (alive) {
+
+        console.info("[portal/invoices][perm]", {
+          uid,
+          tenantId: tid,
+          userTenantsDocPath: `userTenants/${utPath}`,
+          userDocRoleFromUsersCollection: userDocRole,
+          userTenantsDocExists: utSnap.exists(),
+          membershipRoleFromUserTenants: utRole,
+          tenantContextRole: role,
+          isAdminOrOwnerFromContext: isAdminCtx,
+          isAdminOrOwnerFromUserTenantsDoc: isAdminUt,
+          isAdminOrOwnerCombined: isAdminCombined,
+          billingPlanIdResolved: planId,
+          planPermissionsDocPath: `tenants/${tid}/planPermissions/${planId}`,
+          planPermissionsExists: permSnap.exists(),
+          planPermissionsData: permData ?? null,
+          canInvoicesField: permData && "canInvoices" in permData ? permData.canInvoices : "(no field)",
+          canInvoicesResolvedForUi: canInvoicesResolved,
+          tenantCtxLoading,
+          finalUiCanUseAddInvoice:
+            !tenantCtxLoading && isAdminCombined && canInvoicesResolved,
+        });
+
+        if (!alive) return;
+
+        if (!isAdminCombined) {
           setInvoiceCreateAllowed(false);
+          setInvoicePermResolved(true);
+          return;
+        }
+
+        setInvoiceCreateAllowed(canInvoicesResolved);
+        setInvoicePermResolved(true);
+      } catch (e) {
+        console.warn(
+          "[portal/invoices][perm] permission snapshot read failed — failing open for Add Invoice UI; Firestore rules still enforce create",
+          e
+        );
+        if (alive) {
+          setInvoiceCreateAllowed(true);
           setInvoicePermResolved(true);
         }
       }
@@ -117,7 +171,7 @@ export default function InvoicesPage() {
     return () => {
       alive = false;
     };
-  }, [tenant?.id, billingPlanId, isAdminOrOwner]);
+  }, [tenant, tenant?.id, user?.uid, billingPlanId, role, tenantCtxLoading]);
 
   const canUseAddInvoice =
     !tenantCtxLoading && isAdminOrOwner && invoicePermResolved && invoiceCreateAllowed;
@@ -224,6 +278,15 @@ export default function InvoicesPage() {
       const invoiceCount = invoices.length + 1;
       const invoiceNumber = `INV-${String(invoiceCount).padStart(4, "0")}`;
 
+      console.info("[portal/invoices][perm] addDoc submit", {
+        uid: user?.uid,
+        tenantId: tenant.id,
+        canUseAddInvoice,
+        tenantContextRole: role,
+        membershipRoleFromUt,
+        billingPlanId,
+      });
+
       await addDoc(collection(db, "tenants", tenant.id, "invoices"), {
         invoiceNumber,
         clientId: formClientId.trim(),
@@ -250,7 +313,16 @@ export default function InvoicesPage() {
     } catch (err) {
       const code = err && typeof err === "object" && "code" in err ? String((err as { code?: string }).code) : "";
       const message = err instanceof Error ? err.message : String(err);
-      console.error("[portal/invoices] addDoc failed", { code, message, err });
+      console.error("[portal/invoices][perm] addDoc failed", {
+        code,
+        message,
+        uid: user?.uid,
+        tenantId: tenant?.id,
+        tenantContextRole: role,
+        membershipRoleFromUt,
+        billingPlanId,
+        err,
+      });
       setFormError(
         code === "permission-denied"
           ? "You don’t have permission to create invoices (check Firestore rules and plan permissions), or your role isn’t admin/owner."

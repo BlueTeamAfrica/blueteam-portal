@@ -2,15 +2,26 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{db}/documents {
 
-    // Helper function to get tenant billing plan ID
+    // Subscription plan when subscription is a map with plan; otherwise null (never chain .plan off missing/non-map subscription).
+    function tenantSubscriptionPlanId(tenant) {
+      return ('subscription' in tenant.data)
+        && tenant.data.subscription is map
+        && ('plan' in tenant.data.subscription)
+        && tenant.data.subscription.plan != null
+        ? tenant.data.subscription.plan
+        : null;
+    }
+
+    // Helper function to get tenant billing plan ID (mirrors portal getBillingPlanIdFromTenant).
     function getBillingPlanId(tenantId) {
       let tenant = get(/databases/$(db)/documents/tenants/$(tenantId));
-      return tenant.data.subscription.plan != null 
-        ? tenant.data.subscription.plan 
-        : tenant.data.plan != null 
-        ? tenant.data.plan 
-        : tenant.data.billingPlanId != null 
-        ? tenant.data.billingPlanId 
+      let subPlan = tenantSubscriptionPlanId(tenant);
+      return subPlan != null
+        ? subPlan
+        : tenant.data.plan != null
+        ? tenant.data.plan
+        : tenant.data.billingPlanId != null
+        ? tenant.data.billingPlanId
         : 'starter';
     }
 
