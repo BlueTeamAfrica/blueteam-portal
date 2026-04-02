@@ -134,6 +134,13 @@ function getBillingTypeLabel(v?: string) {
   return v ? v : "—";
 }
 
+function canAccessClientServiceArea(role: string | undefined, clientId: string | undefined): boolean {
+  const r = (role ?? "").toLowerCase();
+  if (r === "owner" || r === "admin") return true;
+  if (r === "client" && clientId?.trim()) return true;
+  return false;
+}
+
 export default function ClientServiceDetailPage() {
   const { user } = useAuth();
   const { tenant, role, clientId } = useTenant();
@@ -152,7 +159,7 @@ export default function ClientServiceDetailPage() {
 
   useEffect(() => {
     const tid = tenant?.id;
-    if (!user || !tid || role !== "client" || !clientId || !serviceId) {
+    if (!user || !tid || !serviceId || !canAccessClientServiceArea(role, clientId)) {
       setLoading(false);
       return;
     }
@@ -170,10 +177,12 @@ export default function ClientServiceDetailPage() {
           return;
         }
         const data = snap.data() as Service;
-        if ((data.clientId ?? "") !== clientId) {
-          setNotFound(true);
-          setService(null);
-          return;
+        if ((role ?? "").toLowerCase() === "client") {
+          if ((data.clientId ?? "") !== clientId) {
+            setNotFound(true);
+            setService(null);
+            return;
+          }
         }
         setService(data);
       } catch (e) {
@@ -203,7 +212,7 @@ export default function ClientServiceDetailPage() {
   useEffect(() => {
     const tid = tenant?.id;
     const subId = service?.subscriptionId;
-    if (!user || !tid || role !== "client" || !clientId || !subId) {
+    if (!user || !tid || !subId || !canAccessClientServiceArea(role, clientId)) {
       setSubStatus(null);
       return;
     }
@@ -266,7 +275,12 @@ export default function ClientServiceDetailPage() {
       });
       const data = (await res.json().catch(() => ({}))) as { error?: string };
       if (!res.ok) {
-        setRespondError(data.error ?? "Could not send your response.");
+        setRespondError(
+          data.error ??
+            (res.status === 403
+              ? "You do not have permission to respond to this request."
+              : "Could not send your response.")
+        );
         return;
       }
       setRespondSuccess("Thanks — your team has been notified.");
@@ -283,7 +297,13 @@ export default function ClientServiceDetailPage() {
 
   if (!user) return <p className="text-[#0F172A]">Please log in</p>;
   if (!tenant) return <p className="text-[#0F172A]">Loading tenant…</p>;
-  if (role !== "client" || !clientId) return <p className="text-[#0F172A]">Access denied.</p>;
+  if (!canAccessClientServiceArea(role, clientId)) {
+    return (
+      <p className="text-[#0F172A] text-sm">
+        You do not have permission to view this page.
+      </p>
+    );
+  }
   if (loading) return <p className="text-[#0F172A]">Loading service…</p>;
   if (notFound) {
     return (
