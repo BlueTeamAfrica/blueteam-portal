@@ -22,6 +22,12 @@ function portalBaseUrl() {
   ).replace(/\/$/, "");
 }
 
+/** Client portal URL for one invoice (sign-in required; PDF via Download on page, not a raw API URL). */
+export function getClientInvoicePortalUrl(invoiceId: string) {
+  const base = portalBaseUrl();
+  return `${base}/client/invoices/${encodeURIComponent(invoiceId)}`;
+}
+
 export async function sendAdminInvoiceEmail({
   to,
   tenantName,
@@ -106,7 +112,7 @@ export async function sendClientInvoicesEmail({
 
   const base = portalBaseUrl();
   const clientInvoicesUrl = `${base}/client/invoices`;
-  const invoicePortalUrl = (invoiceId: string) => `${base}/client/invoices#invoice-${invoiceId}`;
+  const invoicePortalUrl = (invoiceId: string) => getClientInvoicePortalUrl(invoiceId);
 
   const subject = `New invoice(s) available – ${tenantName}`;
 
@@ -166,6 +172,7 @@ export async function sendClientOverdueInvoiceEmail({
   to,
   clientName,
   tenantName,
+  invoiceId,
   invoiceNumber,
   amountLabel,
   dueDateLabel,
@@ -173,6 +180,7 @@ export async function sendClientOverdueInvoiceEmail({
   to: string;
   clientName: string;
   tenantName: string;
+  invoiceId: string;
   invoiceNumber: string;
   amountLabel: string;
   dueDateLabel: string;
@@ -180,6 +188,7 @@ export async function sendClientOverdueInvoiceEmail({
   await transporter.verify();
   const base = portalBaseUrl();
   const invoicesUrl = `${base}/client/invoices`;
+  const thisInvoiceUrl = getClientInvoicePortalUrl(invoiceId);
   const subject = `Invoice overdue — ${tenantName}`;
   const text = [
     `Hello ${clientName},`,
@@ -190,8 +199,10 @@ export async function sendClientOverdueInvoiceEmail({
     `Amount: ${amountLabel}`,
     `Due date: ${dueDateLabel}`,
     ``,
-    `View your invoices in the client portal:`,
-    invoicesUrl,
+    `Open this invoice in the client portal (sign in to download PDF):`,
+    thisInvoiceUrl,
+    ``,
+    `All invoices: ${invoicesUrl}`,
     ``,
     `— ${tenantName}`,
   ].join("\n");
@@ -212,7 +223,11 @@ export async function sendClientOverdueInvoiceEmail({
       <tr><td style="padding: 4px 12px 4px 0; color: #64748b;">Due date</td><td style="padding: 4px 0;">${escapeHtml(dueDateLabel)}</td></tr>
     </table>
     <p>
-      <a href="${invoicesUrl}" style="display:inline-block;padding:10px 16px;background:#4f46e5;color:#fff;text-decoration:none;border-radius:8px;font-weight:600;">Open invoices</a>
+      <a href="${thisInvoiceUrl}" style="display:inline-block;padding:10px 16px;background:#4f46e5;color:#fff;text-decoration:none;border-radius:8px;font-weight:600;">Open invoice</a>
+    </p>
+    <p style="font-size: 13px; color: #64748b;">Sign in to the portal if prompted, then use <strong>Download PDF</strong> on the invoice page.</p>
+    <p style="font-size: 13px;">
+      <a href="${invoicesUrl}" style="color:#4f46e5;">View all invoices</a>
     </p>
     <p style="font-size: 12px; color: #64748b;">${escapeHtml(tenantName)}</p>
   </div>`,

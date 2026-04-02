@@ -187,6 +187,7 @@ export async function processClientNotificationsForTenant(tenantId: string): Pro
         to,
         clientName,
         tenantName,
+        invoiceId: doc.id,
         invoiceNumber,
         amountLabel,
         dueDateLabel,
