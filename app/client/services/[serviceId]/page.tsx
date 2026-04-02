@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { doc, getDoc, Timestamp } from "firebase/firestore";
@@ -36,6 +36,9 @@ type Service = {
   clientActionMessage?: string | null;
   clientActionRequestedAt?: Timestamp | null;
   clientActionResolvedAt?: Timestamp | null;
+  clientActionResponse?: string | null;
+  clientActionRespondedAt?: Timestamp | null;
+  clientActionRespondedByUid?: string | null;
   projectId?: string;
   projectName?: string;
   updatedAt?: Timestamp;
@@ -142,6 +145,10 @@ export default function ClientServiceDetailPage() {
   const [notFound, setNotFound] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [subStatus, setSubStatus] = useState<string | null>(null);
+  const [responseText, setResponseText] = useState("");
+  const [respondLoading, setRespondLoading] = useState(false);
+  const [respondError, setRespondError] = useState<string | null>(null);
+  const [respondSuccess, setRespondSuccess] = useState<string | null>(null);
 
   useEffect(() => {
     const tid = tenant?.id;
@@ -226,6 +233,40 @@ export default function ClientServiceDetailPage() {
     if (service?.projectName) qp.set("projectName", service.projectName);
     return `/client/support?${qp.toString()}`;
   }, [service?.name, service?.projectId, service?.projectName, serviceId]);
+
+  async function handleRespondToRequest(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const tid = tenant?.id;
+    if (!user || !tid || !serviceId || !responseText.trim()) return;
+    setRespondLoading(true);
+    setRespondError(null);
+    setRespondSuccess(null);
+    try {
+      const token = await user.getIdToken();
+      const res = await fetch(`/api/client/services/${encodeURIComponent(serviceId)}/respond`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ tenantId: tid, message: responseText }),
+      });
+      const data = (await res.json().catch(() => ({}))) as { error?: string };
+      if (!res.ok) {
+        setRespondError(data.error ?? "Could not send your response.");
+        return;
+      }
+      setRespondSuccess("Thanks — your team has been notified.");
+      setResponseText("");
+      const ref = doc(db, "tenants", tid, "services", serviceId);
+      const snap = await getDoc(ref);
+      if (snap.exists()) setService(snap.data() as Service);
+    } catch (err) {
+      setRespondError((err as { message?: string }).message ?? "Could not send your response.");
+    } finally {
+      setRespondLoading(false);
+    }
+  }
 
   if (!user) return <p className="text-[#0F172A]">Please log in</p>;
   if (!tenant) return <p className="text-[#0F172A]">Loading tenant…</p>;
@@ -384,6 +425,49 @@ export default function ClientServiceDetailPage() {
                 </p>
               </div>
             </div>
+          </div>
+        ) : null}
+
+        {structuredInputPending ? (
+          <div className="bg-white rounded-2xl shadow-sm border border-amber-200 p-5 md:p-6 max-w-full min-w-0">
+            <h2 className="text-[#0F172A] text-lg font-semibold break-words">Respond to this request</h2>
+            <p className="mt-1 text-xs text-slate-600 max-w-2xl leading-relaxed">
+              Type your answer or the information requested above. Your team is notified in the portal when you submit.
+            </p>
+            <form onSubmit={handleRespondToRequest} className="mt-4 space-y-3">
+              {respondError ? (
+                <div className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-800 break-words">
+                  {respondError}
+                </div>
+              ) : null}
+              {respondSuccess ? (
+                <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-900 break-words">
+                  {respondSuccess}
+                </div>
+              ) : null}
+              <label htmlFor="client-service-response" className="sr-only">
+                Your response
+              </label>
+              <textarea
+                id="client-service-response"
+                value={responseText}
+                onChange={(e) => setResponseText(e.target.value)}
+                rows={5}
+                required
+                disabled={respondLoading}
+                className="w-full rounded-xl border border-slate-200 bg-slate-50/50 px-3 py-2.5 text-sm text-[#0F172A] placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-amber-200 disabled:opacity-60"
+                placeholder="Your response…"
+              />
+              <div className="flex justify-end">
+                <button
+                  type="submit"
+                  disabled={respondLoading || !responseText.trim()}
+                  className="inline-flex items-center justify-center px-4 py-2.5 rounded-lg bg-amber-700 text-white text-sm font-semibold hover:bg-amber-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {respondLoading ? "Sending…" : "Submit response"}
+                </button>
+              </div>
+            </form>
           </div>
         ) : null}
 

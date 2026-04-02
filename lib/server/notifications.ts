@@ -7,6 +7,7 @@ export type PortalNotificationType =
   | "invoice_updated"
   | "invoice_overdue"
   | "service_input_needed"
+  | "service_client_responded"
   | "support_waiting_client"
   | "support_waiting_admin";
 

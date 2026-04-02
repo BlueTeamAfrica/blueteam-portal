@@ -22,19 +22,44 @@ function portalBaseUrl() {
   ).replace(/\/$/, "");
 }
 
+/**
+ * Base URL for absolute links in **client-facing** emails (invoices, services, support).
+ * Strips a trailing `/portal` path segment from the configured URL so paths resolve to
+ * `/client/...` at the app root. If `PORTAL_BASE_URL` is `https://host/portal`, using
+ * `portalBaseUrl()` would yield `https://host/portal/client/services/...`, which lands
+ * in the staff area; this helper yields `https://host/client/services/...` instead.
+ */
+function clientFacingEmailBaseUrl() {
+  const raw = (
+    process.env.NEXT_PUBLIC_PORTAL_URL ||
+    process.env.PORTAL_BASE_URL ||
+    "https://portal.blueteamafrica.com"
+  ).trim();
+  try {
+    const u = new URL(raw);
+    const path = u.pathname.replace(/\/portal\/?$/i, "").replace(/\/+$/, "");
+    const base = `${u.origin}${path}`;
+    return base.replace(/\/+$/, "") || u.origin;
+  } catch {
+    let s = raw.replace(/\/+$/, "");
+    s = s.replace(/\/portal\/?$/i, "");
+    return s.replace(/\/+$/, "") || "https://portal.blueteamafrica.com";
+  }
+}
+
 /** Client portal URL for one invoice (sign-in required; PDF via Download on page, not a raw API URL). */
 export function getClientInvoicePortalUrl(invoiceId: string) {
-  const base = portalBaseUrl();
+  const base = clientFacingEmailBaseUrl();
   return `${base}/client/invoices/${encodeURIComponent(invoiceId)}`;
 }
 
 export function getClientServicePortalUrl(serviceId: string) {
-  const base = portalBaseUrl();
+  const base = clientFacingEmailBaseUrl();
   return `${base}/client/services/${encodeURIComponent(serviceId)}`;
 }
 
 export function getClientSupportTicketPortalUrl(ticketId: string) {
-  const base = portalBaseUrl();
+  const base = clientFacingEmailBaseUrl();
   return `${base}/client/support/${encodeURIComponent(ticketId)}`;
 }
 

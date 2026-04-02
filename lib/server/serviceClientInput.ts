@@ -8,7 +8,7 @@ import {
   sendClientServiceWaitingEmail,
 } from "@/lib/mailer";
 import { notificationDocIdFromDedupeKey, upsertNotification } from "@/lib/server/notifications";
-import { getClientUsers } from "@/lib/server/tenantUsers";
+import { getClientUsers, getTenantAdmins } from "@/lib/server/tenantUsers";
 import { getManagedServiceDisplayName } from "@/lib/serviceDisplayName";
 import { normalizeServiceHealth } from "@/lib/serviceHealth";
 
@@ -99,6 +99,9 @@ export async function requestServiceClientInput(params: {
     clientActionMessage: trimmed,
     clientActionRequestedAt: now,
     clientActionResolvedAt: FieldValue.delete(),
+    clientActionResponse: FieldValue.delete(),
+    clientActionRespondedAt: FieldValue.delete(),
+    clientActionRespondedByUid: FieldValue.delete(),
     health: "waiting_client",
     healthNote: trimmed,
     nextAction: nextActionShort,
@@ -215,4 +218,92 @@ export async function resolveServiceClientInput(params: { tenantId: string; serv
     serviceId,
     portalUsers.map((u) => u.uid)
   );
+}
+
+/**
+ * Client submits a response to an active input request: stores reply, clears pending state,
+ * archives client `service_input_needed` notifications, notifies tenant admins/owners in-app.
+ */
+export async function submitClientServiceResponse(params: {
+  tenantId: string;
+  serviceId: string;
+  clientUserId: string;
+  clientId: string;
+  message: string;
+}): Promise<void> {
+  const { tenantId, serviceId, clientUserId, clientId, message } = params;
+  const trimmed = message.trim();
+  if (!trimmed) {
+    throw Object.assign(new Error("Message is required"), { status: 400 });
+  }
+
+  const db = adminDb();
+  const ref = db.collection("tenants").doc(tenantId).collection("services").doc(serviceId);
+  const snap = await ref.get();
+  if (!snap.exists) {
+    throw Object.assign(new Error("Service not found"), { status: 404 });
+  }
+  const data = snap.data() as Record<string, unknown>;
+  const svcClientId = data.clientId as string | undefined;
+  if (!svcClientId?.trim() || svcClientId !== clientId) {
+    throw Object.assign(new Error("Not authorized for this service"), { status: 403 });
+  }
+
+  const pending =
+    data.clientActionRequired === true && String(data.clientActionStatus ?? "").toLowerCase() === "pending";
+  if (!pending) {
+    throw Object.assign(new Error("No active client input request for this service"), { status: 400 });
+  }
+
+  const now = Timestamp.now();
+  const bodyShort = trimmed.length > 500 ? `${trimmed.slice(0, 497)}…` : trimmed;
+
+  await ref.update({
+    clientActionRequired: false,
+    clientActionStatus: "responded",
+    clientActionResponse: trimmed,
+    clientActionRespondedAt: now,
+    clientActionRespondedByUid: clientUserId,
+    health: "healthy",
+    [SERVICE_WAITING_CLIENT_SENT_AT]: FieldValue.delete(),
+    updatedAt: FieldValue.serverTimestamp(),
+  });
+
+  const portalUsers = await getClientUsers(clientId, tenantId);
+  await archiveServiceInputNotificationsForUsers(
+    tenantId,
+    serviceId,
+    portalUsers.map((u) => u.uid)
+  );
+
+  const serviceName = getManagedServiceDisplayName({
+    name: data.name as string | undefined,
+    category: data.category as string | undefined,
+    categoryLabel: data.categoryLabel as string | undefined,
+  });
+
+  const admins = await getTenantAdmins(tenantId);
+  const title = `Client responded: ${serviceName}`;
+  const body = bodyShort || "The client submitted a response.";
+
+  for (const a of admins) {
+    try {
+      await upsertNotification({
+        tenantId,
+        type: "service_client_responded",
+        title,
+        body,
+        targetType: "user",
+        targetUserId: a.uid,
+        clientId,
+        entityType: "service",
+        entityId: serviceId,
+        actionUrl: `/portal/services/${serviceId}`,
+        dedupeKey: `service_client_responded:${serviceId}:${a.uid}`,
+        forceUnreadOnUpdate: true,
+      });
+    } catch (e) {
+      console.error("[service-client-input] admin notify failed", { serviceId, adminUid: a.uid, err: e });
+    }
+  }
 }

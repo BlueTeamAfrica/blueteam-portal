@@ -54,6 +54,9 @@ type Service = {
   clientActionMessage?: string | null;
   clientActionRequestedAt?: Timestamp | null;
   clientActionResolvedAt?: Timestamp | null;
+  clientActionResponse?: string | null;
+  clientActionRespondedAt?: Timestamp | null;
+  clientActionRespondedByUid?: string | null;
   projectId?: string;
   projectName?: string;
   subscriptionId?: string;
@@ -1047,9 +1050,13 @@ export default function PortalServiceDetailPage() {
                   <span className="inline-flex px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-900">
                     Pending client input
                   </span>
+                ) : String(service.clientActionStatus ?? "").toLowerCase() === "responded" ? (
+                  <span className="inline-flex px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-900">
+                    Client responded
+                  </span>
                 ) : service.clientActionStatus === "resolved" ? (
                   <span className="inline-flex px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-200 text-slate-700">
-                    Resolved
+                    Resolved (staff)
                   </span>
                 ) : (
                   <span className="inline-flex px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-600">
@@ -1067,6 +1074,25 @@ export default function PortalServiceDetailPage() {
                   </span>
                 ) : null}
               </div>
+
+              {service.clientActionResponse?.trim() ? (
+                <div className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50/90 p-4">
+                  <p className="text-xs font-semibold text-emerald-950 uppercase tracking-wide">Latest client response</p>
+                  <p className="mt-2 text-sm text-[#0F172A] whitespace-pre-wrap break-words leading-relaxed">
+                    {service.clientActionResponse.trim()}
+                  </p>
+                  <div className="mt-3 flex flex-col sm:flex-row sm:flex-wrap gap-1 sm:gap-x-4 text-xs text-slate-600">
+                    {service.clientActionRespondedAt ? (
+                      <span>Submitted {formatDateTime(service.clientActionRespondedAt)}</span>
+                    ) : null}
+                    {service.clientActionRespondedByUid ? (
+                      <span className="font-mono text-[11px] break-all">
+                        Portal user: {service.clientActionRespondedByUid}
+                      </span>
+                    ) : null}
+                  </div>
+                </div>
+              ) : null}
 
               {clientInputError ? (
                 <div className="mt-3 bg-rose-50 border border-rose-200 rounded-xl p-3">
