@@ -18,6 +18,7 @@ import { db } from "@/lib/firebase";
 import { useAuth } from "@/lib/authContext";
 import { useTenant } from "@/lib/tenantContext";
 import { PORTAL_SELECT_CLASS, PORTAL_SELECT_LABEL_CLASS } from "@/lib/portalSelectStyles";
+import { isTicketReplyNeeded } from "@/lib/clientPortalSignals";
 import { SelectArrowWrap } from "@/components/portal/SelectArrowWrap";
 
 type TicketPriority = "low" | "medium" | "high" | "urgent";
@@ -69,7 +70,7 @@ function statusBadge(s?: TicketStatus) {
   const v = (s ?? "open").toLowerCase() as TicketStatus;
   if (v === "resolved") return badgePill("bg-emerald-100 text-emerald-800", "Resolved");
   if (v === "closed") return badgePill("bg-slate-200 text-slate-700", "Closed");
-  if (v === "waiting_client") return badgePill("bg-sky-100 text-sky-800", "Waiting on you");
+  if (v === "waiting_client") return badgePill("bg-sky-100 text-sky-800", "Reply needed");
   if (v === "in_progress") return badgePill("bg-amber-100 text-amber-800", "In progress");
   return badgePill("bg-slate-100 text-slate-700", "Open");
 }
@@ -215,6 +216,17 @@ export default function ClientSupportPage() {
   }, [showForm, tenant?.id, clientId]);
 
   const hasTickets = useMemo(() => tickets.length > 0, [tickets.length]);
+
+  const mobileTickets = useMemo(() => {
+    const copy = tickets.slice();
+    copy.sort((a, b) => {
+      const aNeeds = isTicketReplyNeeded(a.status);
+      const bNeeds = isTicketReplyNeeded(b.status);
+      if (aNeeds !== bNeeds) return aNeeds ? -1 : 1;
+      return 0;
+    });
+    return copy;
+  }, [tickets]);
 
   async function handleCreateTicket(e: React.FormEvent) {
     e.preventDefault();
@@ -433,11 +445,13 @@ export default function ClientSupportPage() {
           </div>
         ) : (
           <ul className="space-y-4 list-none p-0 m-0">
-            {tickets.map((t) => (
+            {mobileTickets.map((t) => (
               <li key={t.id} className="min-w-0">
                 <Link
                   href={`/client/support/${t.id}`}
-                  className="block min-w-0 rounded-3xl bg-white p-5 shadow-[0_2px_12px_rgba(15,23,42,0.06)] ring-1 ring-slate-200/70 active:bg-slate-50/90 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#4F46E5] focus-visible:ring-offset-2"
+                  className={`block min-w-0 rounded-3xl bg-white p-5 shadow-[0_2px_12px_rgba(15,23,42,0.06)] ring-1 ring-slate-200/70 active:bg-slate-50/90 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#4F46E5] focus-visible:ring-offset-2 ${
+                    isTicketReplyNeeded(t.status) ? "ring-indigo-200/90 border border-indigo-100/90" : ""
+                  }`}
                 >
                   <div className="flex items-start justify-between gap-3 min-w-0">
                     <div className="min-w-0 flex-1">

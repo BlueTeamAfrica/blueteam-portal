@@ -8,6 +8,7 @@ import { db } from "@/lib/firebase";
 import { useAuth } from "@/lib/authContext";
 import { useTenant } from "@/lib/tenantContext";
 import { getManagedServiceCategoryLabel, getManagedServiceDisplayName } from "@/lib/serviceDisplayName";
+import { isWaitingClientHealth } from "@/lib/clientPortalSignals";
 
 type Service = {
   id: string;
@@ -18,9 +19,12 @@ type Service = {
   categoryDisplay: string;
   tier?: string;
   status?: string;
+  health?: string;
   renewalDate?: Timestamp;
   projectName?: string;
   projectId?: string;
+  nextAction?: string;
+  nextActionDue?: Timestamp | null;
 };
 
 function formatDate(ts?: Timestamp) {
@@ -85,7 +89,10 @@ export default function ClientServicesPage() {
               tier?: string;
               plan?: string;
               status?: string;
+              health?: string;
               renewalDate?: Timestamp;
+              nextAction?: string;
+              nextActionDue?: Timestamp | null;
               projectId?: string;
               projectName?: string;
             };
@@ -102,9 +109,12 @@ export default function ClientServicesPage() {
               categoryDisplay: getManagedServiceCategoryLabel(data.category, data.categoryLabel),
               tier: data.tier ?? data.plan,
               status: data.status,
+              health: data.health,
               renewalDate: data.renewalDate,
               projectId: data.projectId,
               projectName: data.projectName,
+              nextAction: data.nextAction,
+              nextActionDue: data.nextActionDue,
             };
           })
         );
@@ -120,6 +130,11 @@ export default function ClientServicesPage() {
   }, [user, tenant?.id, role, clientId]);
 
   const rows = useMemo(() => services, [services]);
+  const mobileRows = useMemo(() => {
+    const waiting = rows.filter((s) => isWaitingClientHealth(s.health));
+    const rest = rows.filter((s) => !isWaitingClientHealth(s.health));
+    return [...waiting, ...rest];
+  }, [rows]);
 
   if (!user) return <p className="text-[#0F172A]">Please log in</p>;
   if (!tenant) return <p className="text-[#0F172A]">Loading tenant…</p>;
@@ -159,7 +174,9 @@ export default function ClientServicesPage() {
       ) : (
         <>
           <ul className="mt-6 md:hidden space-y-3 list-none p-0 m-0">
-            {rows.map((s) => (
+            {mobileRows.map((s) => {
+              const needsInput = isWaitingClientHealth(s.health);
+              return (
               <li key={s.id} className="min-w-0">
                 <Link
                   href={`/client/services/${s.id}`}
@@ -172,6 +189,11 @@ export default function ClientServicesPage() {
                     </div>
                     <div className="flex items-start gap-2 shrink-0">
                       <StatusBadge status={s.status} />
+                      {needsInput ? (
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200">
+                          Needs your input
+                        </span>
+                      ) : null}
                       <span className="text-slate-300 mt-0.5" aria-hidden>
                         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
@@ -188,6 +210,18 @@ export default function ClientServicesPage() {
                       <dt className="text-slate-500 shrink-0">Renewal</dt>
                       <dd className="font-medium text-[#0F172A] tabular-nums text-right">{formatDate(s.renewalDate)}</dd>
                     </div>
+                    {needsInput && s.nextAction ? (
+                      <div className="flex justify-between gap-3">
+                        <dt className="text-slate-500 shrink-0">Next</dt>
+                        <dd className="font-medium text-[#0F172A] text-right break-words">{s.nextAction}</dd>
+                      </div>
+                    ) : null}
+                    {needsInput && s.nextActionDue ? (
+                      <div className="flex justify-between gap-3">
+                        <dt className="text-slate-500 shrink-0">Due</dt>
+                        <dd className="font-medium text-[#0F172A] tabular-nums text-right">{formatDate(s.nextActionDue)}</dd>
+                      </div>
+                    ) : null}
                     {(s.projectName || s.projectId) ? (
                       <div className="flex justify-between gap-3">
                         <dt className="text-slate-500 shrink-0">Project</dt>
@@ -199,7 +233,8 @@ export default function ClientServicesPage() {
                   </dl>
                 </Link>
               </li>
-            ))}
+              );
+            })}
           </ul>
 
           <div className="mt-6 hidden md:block bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden max-w-full">
@@ -241,6 +276,21 @@ export default function ClientServicesPage() {
                       </td>
                       <td className="py-3 px-4">
                         <StatusBadge status={s.status} />
+                        {isWaitingClientHealth(s.health) ? (
+                          <>
+                            <div className="mt-1 inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200">
+                              Needs your input
+                            </div>
+                            {s.nextAction ? (
+                              <div className="mt-1 text-xs text-indigo-700 break-words">{s.nextAction}</div>
+                            ) : null}
+                            {s.nextActionDue ? (
+                              <div className="mt-1 text-xs text-slate-500 tabular-nums">
+                                Due: {formatDate(s.nextActionDue)}
+                              </div>
+                            ) : null}
+                          </>
+                        ) : null}
                       </td>
                       <td className="py-3 px-4 text-[#0F172A]">{s.categoryDisplay || "—"}</td>
                       <td className="py-3 px-4 text-[#0F172A]">{formatDate(s.renewalDate)}</td>

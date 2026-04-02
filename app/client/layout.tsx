@@ -4,9 +4,12 @@ import { useEffect, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
 import { signOut } from "firebase/auth";
-import { auth } from "@/lib/firebase";
+import { auth, db } from "@/lib/firebase";
 import { useAuth } from "@/lib/authContext";
 import { useUserProfile } from "@/lib/userProfileContext";
+import { useTenant } from "@/lib/tenantContext";
+import { collection, getDocs, query, where } from "firebase/firestore";
+import { isWaitingClientHealth, isTicketReplyNeeded } from "@/lib/clientPortalSignals";
 
 const nav = [
   { href: "/client/dashboard", label: "Dashboard" },
@@ -20,9 +23,17 @@ const nav = [
 function NavLinks({
   pathname,
   onNavigate,
+  servicesNeedsInputCount,
+  invoicesUnpaidCount,
+  invoicesOverdueCount,
+  ticketsReplyNeededCount,
 }: {
   pathname: string;
   onNavigate?: () => void;
+  servicesNeedsInputCount: number;
+  invoicesUnpaidCount: number;
+  invoicesOverdueCount: number;
+  ticketsReplyNeededCount: number;
 }) {
   return (
     <>
@@ -37,7 +48,31 @@ function NavLinks({
               : "text-[#0F172A] hover:bg-slate-100"
           }`}
         >
-          {item.label}
+          <span className="inline-flex items-center gap-2 min-w-0">
+            <span className="truncate">{item.label}</span>
+            {item.href === "/client/services" && servicesNeedsInputCount > 0 ? (
+              <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200">
+                {servicesNeedsInputCount}
+              </span>
+            ) : null}
+            {item.href === "/client/invoices" &&
+            invoicesUnpaidCount + invoicesOverdueCount > 0 ? (
+              <span
+                className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold border ${
+                  invoicesUnpaidCount > 0
+                    ? "bg-rose-50 text-rose-800 border-rose-200"
+                    : "bg-amber-50 text-amber-800 border-amber-200"
+                }`}
+              >
+                {invoicesUnpaidCount + invoicesOverdueCount}
+              </span>
+            ) : null}
+            {item.href === "/client/support" && ticketsReplyNeededCount > 0 ? (
+              <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold bg-sky-50 text-sky-700 border border-sky-200">
+                {ticketsReplyNeededCount}
+              </span>
+            ) : null}
+          </span>
         </Link>
       ))}
     </>
@@ -55,7 +90,13 @@ export default function ClientLayout({
   const pathname = usePathname();
   const { user, loading: authLoading } = useAuth();
   const { role, loading } = useUserProfile();
+  const { tenant, clientId } = useTenant();
   const [drawerOpen, setDrawerOpen] = useState(false);
+
+  const [servicesNeedsInputCount, setServicesNeedsInputCount] = useState(0);
+  const [invoicesUnpaidCount, setInvoicesUnpaidCount] = useState(0);
+  const [invoicesOverdueCount, setInvoicesOverdueCount] = useState(0);
+  const [ticketsReplyNeededCount, setTicketsReplyNeededCount] = useState(0);
 
   useEffect(() => {
     setDrawerOpen(false);
@@ -81,6 +122,106 @@ export default function ClientLayout({
       router.replace("/portal");
     }
   }, [authLoading, user, role, loading, router]);
+
+  useEffect(() => {
+    let alive = true;
+    async function loadCounts() {
+      if (!tenant?.id || !clientId || role !== "client") return;
+      const tid = tenant.id;
+      const cid = clientId;
+      try {
+        // Services needing client action (best-effort + in-memory fallback).
+        try {
+          const snap = await getDocs(
+            query(
+              collection(db, "tenants", tid, "services"),
+              where("clientId", "==", cid),
+              where("health", "==", "waiting_client")
+            )
+          );
+          if (alive) setServicesNeedsInputCount(snap.size);
+        } catch {
+          const snap = await getDocs(
+            query(collection(db, "tenants", tid, "services"), where("clientId", "==", cid))
+          );
+          const count = snap.docs.reduce((acc, d) => {
+            const data = d.data() as { health?: string };
+            return acc + (isWaitingClientHealth(data.health) ? 1 : 0);
+          }, 0);
+          if (alive) setServicesNeedsInputCount(count);
+        }
+
+        // Invoices (unpaid + overdue).
+        try {
+          const unpaidSnap = await getDocs(
+            query(
+              collection(db, "tenants", tid, "invoices"),
+              where("clientId", "==", cid),
+              where("status", "==", "unpaid")
+            )
+          );
+          const overdueSnap = await getDocs(
+            query(
+              collection(db, "tenants", tid, "invoices"),
+              where("clientId", "==", cid),
+              where("status", "==", "overdue")
+            )
+          );
+          if (alive) {
+            setInvoicesUnpaidCount(unpaidSnap.size);
+            setInvoicesOverdueCount(overdueSnap.size);
+          }
+        } catch (err) {
+          // Fallback: fetch all invoices for the client and derive in-memory.
+          const invSnap = await getDocs(
+            query(collection(db, "tenants", tid, "invoices"), where("clientId", "==", cid))
+          );
+          const derived = invSnap.docs.reduce(
+            (acc, d) => {
+              const data = d.data() as { status?: string };
+              const s = (data.status ?? "").toLowerCase();
+              if (s === "unpaid") acc.unpaid += 1;
+              if (s === "overdue") acc.overdue += 1;
+              return acc;
+            },
+            { unpaid: 0, overdue: 0 }
+          );
+          if (alive) {
+            setInvoicesUnpaidCount(derived.unpaid);
+            setInvoicesOverdueCount(derived.overdue);
+          }
+        }
+
+        // Support tickets reply needed.
+        try {
+          const snap = await getDocs(
+            query(
+              collection(db, "tenants", tid, "tickets"),
+              where("clientId", "==", cid),
+              where("status", "==", "waiting_client")
+            )
+          );
+          if (alive) setTicketsReplyNeededCount(snap.size);
+        } catch {
+          const snap = await getDocs(
+            query(collection(db, "tenants", tid, "tickets"), where("clientId", "==", cid))
+          );
+          const fallbackCount = snap.docs.reduce((acc, d) => {
+            const data = d.data() as { status?: string };
+            return acc + (isTicketReplyNeeded(data.status) ? 1 : 0);
+          }, 0);
+          if (alive) setTicketsReplyNeededCount(fallbackCount);
+        }
+      } catch {
+        // Non-blocking: nav badges can be omitted if counts fail.
+      }
+    }
+
+    loadCounts();
+    return () => {
+      alive = false;
+    };
+  }, [tenant?.id, clientId, role]);
 
   if (authLoading) return (
     <div className="min-h-screen bg-[#F8FAFC] flex items-center justify-center">
@@ -149,7 +290,14 @@ export default function ClientLayout({
               </button>
             </div>
             <nav className="p-3 space-y-1 overflow-y-auto min-h-0 flex-1">
-              <NavLinks pathname={pathname} onNavigate={() => setDrawerOpen(false)} />
+              <NavLinks
+                pathname={pathname}
+                onNavigate={() => setDrawerOpen(false)}
+                servicesNeedsInputCount={servicesNeedsInputCount}
+                invoicesUnpaidCount={invoicesUnpaidCount}
+                invoicesOverdueCount={invoicesOverdueCount}
+                ticketsReplyNeededCount={ticketsReplyNeededCount}
+              />
             </nav>
           </aside>
         </>
@@ -161,7 +309,13 @@ export default function ClientLayout({
           <h2 className="text-[#0F172A] font-semibold break-words">Client Portal</h2>
         </div>
         <nav className="p-3 space-y-1">
-          <NavLinks pathname={pathname} />
+          <NavLinks
+            pathname={pathname}
+            servicesNeedsInputCount={servicesNeedsInputCount}
+            invoicesUnpaidCount={invoicesUnpaidCount}
+            invoicesOverdueCount={invoicesOverdueCount}
+            ticketsReplyNeededCount={ticketsReplyNeededCount}
+          />
         </nav>
       </aside>
 

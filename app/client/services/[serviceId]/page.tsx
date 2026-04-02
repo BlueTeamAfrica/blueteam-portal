@@ -322,6 +322,23 @@ export default function ClientServiceDetailPage() {
           <p className="mt-3 text-slate-600 text-sm break-words">{summaryText}</p>
         </div>
 
+        {isWaitingClient ? (
+          <div className="bg-indigo-50 border border-indigo-100 rounded-2xl p-4 md:p-5">
+            <div className="flex items-start gap-3">
+              <div
+                className="shrink-0 flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-600/10 text-indigo-900"
+                aria-hidden
+              >
+                ⚠️
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-[#0F172A] font-extrabold text-sm sm:text-base break-words">Action needed from you</p>
+                <p className="mt-1 text-sm text-indigo-900/80 break-words">{nextPrimaryLine}</p>
+              </div>
+            </div>
+          </div>
+        ) : null}
+
         {/* Current Status */}
         <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5 md:p-6 max-w-full min-w-0">
           <div className="flex items-start justify-between gap-4 flex-wrap">
@@ -367,7 +384,7 @@ export default function ClientServiceDetailPage() {
           </div>
           {isWaitingClient ? (
             <p className="mt-3 text-xs text-indigo-800/80 bg-indigo-50 border border-indigo-100 rounded-xl p-3">
-              We&apos;re waiting on you to complete this so we can keep everything moving.
+              Reply to this so we can move the service forward.
             </p>
           ) : null}
         </div>

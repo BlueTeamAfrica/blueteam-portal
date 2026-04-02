@@ -67,7 +67,7 @@ function statusBadge(s?: TicketStatus) {
   const v = (s ?? "open").toLowerCase() as TicketStatus;
   if (v === "resolved") return badge("bg-emerald-50 text-emerald-700 border-emerald-200", "Resolved");
   if (v === "closed") return badge("bg-slate-50 text-slate-600 border-slate-200", "Closed");
-  if (v === "waiting_client") return badge("bg-sky-50 text-sky-700 border-sky-200", "Waiting on you");
+  if (v === "waiting_client") return badge("bg-sky-50 text-sky-700 border-sky-200", "Reply needed");
   if (v === "in_progress") return badge("bg-amber-50 text-amber-700 border-amber-200", "In progress");
   return badge("bg-slate-50 text-slate-700 border-slate-200", "Open");
 }

@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { collection, getDocs, query, where, Timestamp } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useAuth } from "@/lib/authContext";
 import { useTenant } from "@/lib/tenantContext";
+import { getInvoiceEmphasis, isUnpaidOrOverdueInvoice } from "@/lib/clientPortalSignals";
 
 type Invoice = {
   id: string;
@@ -40,9 +41,11 @@ function StatusBadge({ status }: { status?: string }) {
         : s === "overdue"
           ? "bg-amber-100 text-amber-800"
           : "bg-slate-100 text-slate-600";
+
+  const label = getInvoiceEmphasis(status) ?? (status ?? "—");
   return (
     <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${styles}`}>
-      {status ?? "—"}
+      {label}
     </span>
   );
 }
@@ -95,6 +98,17 @@ export default function ClientInvoicesPage() {
 
     load();
   }, [user, tenant?.id, role, clientId]);
+
+  const mobileInvoices = useMemo(() => {
+    const copy = invoices.slice();
+    copy.sort((a, b) => {
+      const aP = isUnpaidOrOverdueInvoice(a.status) ? 0 : 1;
+      const bP = isUnpaidOrOverdueInvoice(b.status) ? 0 : 1;
+      if (aP !== bP) return aP - bP;
+      return 0;
+    });
+    return copy;
+  }, [invoices]);
 
   const downloadPdf = async (inv: Invoice) => {
     if (!user) {
@@ -203,15 +217,28 @@ export default function ClientInvoicesPage() {
         <>
           {/* Mobile: stacked cards */}
           <ul className="mt-6 md:hidden space-y-3 list-none p-0 m-0">
-            {invoices.map((inv) => (
+            {mobileInvoices.map((inv) => {
+              const emphasis = getInvoiceEmphasis(inv.status);
+              return (
               <li
                 key={inv.id}
-                className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm min-w-0"
+                className={`rounded-2xl border p-4 shadow-sm min-w-0 ${
+                  emphasis === "Unpaid"
+                    ? "border-rose-200 bg-rose-50/20"
+                    : emphasis === "Overdue"
+                      ? "border-amber-200 bg-amber-50/20"
+                      : "border-slate-200 bg-white"
+                }`}
               >
                 <div className="flex items-start justify-between gap-3 min-w-0">
                   <div className="min-w-0 flex-1">
                     <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Invoice</p>
                     <p className="text-lg font-semibold text-[#0F172A] truncate">{inv.invoiceNumber ?? "—"}</p>
+                    {emphasis ? (
+                      <p className="mt-2 text-sm font-semibold text-[#0F172A]">
+                        {emphasis}
+                      </p>
+                    ) : null}
                     <p className="mt-2 text-2xl font-semibold text-[#0F172A] tabular-nums">{formatAmount(inv)}</p>
                   </div>
                   <StatusBadge status={inv.status} />
@@ -231,7 +258,8 @@ export default function ClientInvoicesPage() {
                   {downloadingPdfId === inv.id ? "Downloading…" : "Download PDF"}
                 </button>
               </li>
-            ))}
+              );
+            })}
           </ul>
 
           {/* Desktop: table */}
@@ -248,8 +276,19 @@ export default function ClientInvoicesPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {invoices.map((inv) => (
-                    <tr key={inv.id} className="border-b border-slate-100 last:border-0">
+                  {invoices.map((inv) => {
+                    const emphasis = getInvoiceEmphasis(inv.status);
+                    return (
+                    <tr
+                      key={inv.id}
+                      className={`border-b border-slate-100 last:border-0 ${
+                        emphasis === "Unpaid"
+                          ? "bg-rose-50/20"
+                          : emphasis === "Overdue"
+                            ? "bg-amber-50/20"
+                            : ""
+                      }`}
+                    >
                       <td className="py-3 px-4 text-[#0F172A] font-medium">{inv.invoiceNumber ?? "—"}</td>
                       <td className="py-3 px-4">
                         <StatusBadge status={inv.status} />
@@ -267,7 +306,8 @@ export default function ClientInvoicesPage() {
                         </button>
                       </td>
                     </tr>
-                  ))}
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
