@@ -285,6 +285,15 @@ export default function PortalServicesPage() {
     if (!formCategory && MANAGED_SERVICE_CATEGORIES[0]?.value) setFormCategory(MANAGED_SERVICE_CATEGORIES[0].value);
   }, [showCreate]); // intentionally not depending on form fields
 
+  useEffect(() => {
+    if (!showCreate) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = prev;
+    };
+  }, [showCreate]);
+
   // Keep selected client aligned with loaded clients list (canonical id = clients/{docId}).
   useEffect(() => {
     if (!showCreate || clients.length === 0) return;
@@ -578,12 +587,12 @@ export default function PortalServicesPage() {
 
       {showCreate && (
         <div
-          className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-3"
+          className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-2 sm:p-3"
           role="dialog"
           aria-modal="true"
         >
-          <div className="bg-white rounded-2xl shadow-xl border border-slate-200 w-full max-w-3xl overflow-hidden">
-            <div className="p-5 md:p-6 border-b border-slate-200 flex items-start justify-between gap-3">
+          <div className="bg-white rounded-2xl shadow-xl border border-slate-200 w-full max-w-3xl overflow-hidden max-h-[90vh] flex flex-col min-h-0">
+            <div className="p-5 md:p-6 border-b border-slate-200 flex items-start justify-between gap-3 flex-none">
               <div className="min-w-0">
                 <h2 className="text-[#0F172A] text-lg font-semibold break-words">Add Service</h2>
                 <p className="text-slate-500 text-sm mt-1 break-words">
@@ -602,14 +611,18 @@ export default function PortalServicesPage() {
               </button>
             </div>
 
-            <form onSubmit={handleCreateService} className="p-5 md:p-6 space-y-4">
-              {createError && (
-                <div className="bg-rose-50 border border-rose-200 rounded-xl p-3">
-                  <p className="text-rose-700 text-sm break-words">{createError}</p>
-                </div>
-              )}
+            <form
+              onSubmit={handleCreateService}
+              className="flex flex-col p-5 md:p-6 overflow-hidden min-h-0"
+            >
+              <div className="flex-1 overflow-y-auto min-h-0 space-y-4 pr-1">
+                {createError && (
+                  <div className="bg-rose-50 border border-rose-200 rounded-xl p-3">
+                    <p className="text-rose-700 text-sm break-words">{createError}</p>
+                  </div>
+                )}
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-1">
                   <label className={PORTAL_SELECT_LABEL_CLASS}>Client *</label>
                   <SelectArrowWrap>
@@ -804,9 +817,11 @@ export default function PortalServicesPage() {
                   placeholder="Add internal notes / scope / handoff details..."
                   className="w-full px-3 py-2 rounded-lg border border-slate-200 text-[#0F172A] placeholder:text-slate-400"
                 />
+                </div>
+
               </div>
 
-              <div className="flex flex-wrap gap-2 justify-end pt-1">
+              <div className="flex flex-wrap gap-2 justify-end pt-1 border-t border-slate-200 bg-white">
                 <button
                   type="button"
                   onClick={() => setShowCreate(false)}
