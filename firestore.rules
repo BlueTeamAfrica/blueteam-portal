@@ -118,6 +118,52 @@ service cloud.firestore {
       return role == "client";
     }
 
+    // Effective role for notification recipient checks (userTenants map preferred, else users/{uid} for this tenant).
+    function notificationEffectiveRoleLower(tenantId) {
+      let utPath = /databases/$(db)/documents/userTenants/$(request.auth.uid + "_" + tenantId);
+      if (exists(utPath) && get(utPath).data.role is string) {
+        return get(utPath).data.role.lower();
+      }
+      let uPath = /databases/$(db)/documents/users/$(request.auth.uid);
+      if (exists(uPath)
+          && get(uPath).data.tenantId == tenantId
+          && get(uPath).data.role is string) {
+        return get(uPath).data.role.lower();
+      }
+      return null;
+    }
+
+    function notificationEffectiveClientId(tenantId) {
+      let uPath = /databases/$(db)/documents/users/$(request.auth.uid);
+      return exists(uPath) && get(uPath).data.tenantId == tenantId
+        ? get(uPath).data.clientId
+        : null;
+    }
+
+    function canReadPortalNotification(tenantId) {
+      return request.auth != null
+        && resource.data.tenantId == tenantId
+        && (hasTenantAccess(tenantId) || hasTenantAccessLegacy() || isClientWithTenantAccess(tenantId))
+        && (
+          (resource.data.targetType == "user" && resource.data.targetUserId == request.auth.uid)
+          || (
+            resource.data.targetType == "role"
+            && resource.data.targetRole is string
+            && notificationEffectiveRoleLower(tenantId) != null
+            && resource.data.targetRole.lower() == notificationEffectiveRoleLower(tenantId)
+            && (
+              resource.data.targetRole.lower() != "client"
+              || resource.data.clientId == notificationEffectiveClientId(tenantId)
+            )
+          )
+        );
+    }
+
+    function canUpdatePortalNotification(tenantId) {
+      return canReadPortalNotification(tenantId)
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["status", "readAt", "updatedAt"]);
+    }
+
     // Users collection: each user can read their own document
     match /users/{userId} {
       allow read: if request.auth != null && request.auth.uid == userId;
@@ -222,6 +268,13 @@ service cloud.firestore {
       match /payments/{paymentId} {
         allow read: if hasTenantAccess(tenantId) || hasTenantAccessLegacy();
         allow write: if (hasTenantAccess(tenantId) || hasTenantAccessLegacy()) && isAdminOrOwner(tenantId);
+      }
+
+      // In-app notifications (server-created only; clients may mark read).
+      match /notifications/{notificationId} {
+        allow read, list: if canReadPortalNotification(tenantId);
+        allow create, delete: if false;
+        allow update: if canUpdatePortalNotification(tenantId);
       }
     }
   }

@@ -3,15 +3,34 @@ import type { DocumentReference, Firestore } from "firebase-admin/firestore";
 import { FieldValue, Timestamp } from "firebase-admin/firestore";
 import { adminDb } from "@/lib/firebaseAdmin";
 import {
+  INVOICE_OVERDUE_SENT_AT,
+  OVERDUE_EMAIL_SENT_AT,
+  OVERDUE_NOTIFIED_AT,
+  SERVICE_WAITING_CLIENT_SENT_AT,
+  TICKET_REPLY_WAITING_SENT_AT,
+} from "@/lib/server/clientNotificationDedupe";
+import {
+  emptyChannelMetrics,
+  mergeSkip,
+  type NotificationChannelMetrics,
+  type NotificationSkipMetrics,
+} from "@/lib/server/clientNotificationMetrics";
+import { generateOverdueInvoiceNotifications, isOpenInvoiceAwaitingPayment } from "@/lib/server/generateOverdueInvoiceNotifications";
+import {
   getClientServicePortalUrl,
   getClientSupportTicketPortalUrl,
-  sendClientOverdueInvoiceEmail,
   sendClientServiceWaitingEmail,
   sendClientSupportReplyWaitingEmail,
 } from "@/lib/mailer";
 import { isUnpaidOrOverdueInvoice } from "@/lib/clientPortalSignals";
 import { normalizeServiceHealth } from "@/lib/serviceHealth";
 import { getManagedServiceDisplayName } from "@/lib/serviceDisplayName";
+
+export {
+  INVOICE_OVERDUE_SENT_AT,
+  SERVICE_WAITING_CLIENT_SENT_AT,
+  TICKET_REPLY_WAITING_SENT_AT,
+} from "@/lib/server/clientNotificationDedupe";
 
 /**
  * Client notification deduplication (one email per “spell”, no spam on cron overlap):
@@ -25,44 +44,7 @@ import { getManagedServiceDisplayName } from "@/lib/serviceDisplayName";
  * 3. Concurrent crons: only one transaction can claim an empty dedupe slot for a still-eligible doc; others see
  *    already_notified / not_eligible and skip (skip.claimNotTaken / alreadyNotified).
  */
-/** Dedupe: invoice doc — sent once per overdue spell; cleared when paid or no longer overdue. */
-export const INVOICE_OVERDUE_SENT_AT = "clientOverdueNotificationSentAt";
-/** Dedupe: service doc — sent once per waiting_client spell; cleared when health changes. */
-export const SERVICE_WAITING_CLIENT_SENT_AT = "clientWaitingClientNotificationSentAt";
-/** Dedupe: ticket doc — sent once per waiting_client spell; cleared when status changes. */
-export const TICKET_REPLY_WAITING_SENT_AT = "clientReplyWaitingNotificationSentAt";
-
-export type NotificationSkipMetrics = {
-  /** Dedupe field already present (fast path, no transaction). */
-  alreadyNotified: number;
-  missingClientId: number;
-  missingEmail: number;
-  /** Transaction did not claim (race, doc changed, or error). */
-  claimNotTaken: number;
-};
-
-export type NotificationChannelMetrics = {
-  sent: number;
-  failed: number;
-  cleared: number;
-  skip: NotificationSkipMetrics;
-};
-
-function emptyChannelMetrics(): NotificationChannelMetrics {
-  return {
-    sent: 0,
-    failed: 0,
-    cleared: 0,
-    skip: { alreadyNotified: 0, missingClientId: 0, missingEmail: 0, claimNotTaken: 0 },
-  };
-}
-
-function mergeSkip(into: NotificationSkipMetrics, from: NotificationSkipMetrics) {
-  into.alreadyNotified += from.alreadyNotified;
-  into.missingClientId += from.missingClientId;
-  into.missingEmail += from.missingEmail;
-  into.claimNotTaken += from.claimNotTaken;
-}
+export type { NotificationChannelMetrics, NotificationSkipMetrics } from "@/lib/server/clientNotificationMetrics";
 
 type ClaimOutcome = "claimed" | "already_notified" | "not_eligible";
 
@@ -111,21 +93,6 @@ function toDateMaybe(v: unknown): Date | null {
   return null;
 }
 
-function formatAmount(amount: unknown, currency: unknown): string {
-  const n = typeof amount === "number" ? amount : Number(amount);
-  const cur = typeof currency === "string" && currency.trim() ? currency.trim() : "USD";
-  if (!Number.isFinite(n)) return cur;
-  try {
-    return new Intl.NumberFormat(undefined, { style: "currency", currency: cur }).format(n);
-  } catch {
-    return `${cur} ${n}`;
-  }
-}
-
-function formatDateLabel(d: Date): string {
-  return d.toLocaleDateString(undefined, { dateStyle: "medium" });
-}
-
 export type ClientNotificationsTenantResult = {
   tenantId: string;
   overdueInvoice: NotificationChannelMetrics;
@@ -148,7 +115,6 @@ export type ProcessClientNotificationsResult = {
 export async function processClientNotificationsForTenant(tenantId: string): Promise<ClientNotificationsTenantResult> {
   const db = adminDb();
   const now = new Date();
-  const nowTs = Timestamp.fromDate(now);
 
   const tenantSnap = await db.collection("tenants").doc(tenantId).get();
   const tenantName = tenantSnap.exists
@@ -166,20 +132,33 @@ export async function processClientNotificationsForTenant(tenantId: string): Pro
   // --- Cleanup stale dedupe flags (state left actionable) ---
   const epoch = Timestamp.fromMillis(0);
 
-  const overdueSentSnap = await invoicesRef.where(INVOICE_OVERDUE_SENT_AT, ">", epoch).get();
-  for (const doc of overdueSentSnap.docs) {
-    const data = doc.data() as {
-      status?: string;
-      dueDate?: unknown;
-      [key: string]: unknown;
-    };
-    const due = toDateMaybe(data.dueDate);
-    const unpaid = isUnpaidOrOverdueInvoice(data.status);
-    const pastDue = due !== null && due.getTime() < now.getTime();
-    if (!unpaid || !pastDue) {
-      await doc.ref.update({ [INVOICE_OVERDUE_SENT_AT]: FieldValue.delete() });
-      overdueInvoice.cleared += 1;
-      console.log("[client-notifications] cleared invoice overdue flag", { tenantId, invoiceId: doc.id });
+  const overdueDedupeSnaps = await Promise.all([
+    invoicesRef.where(INVOICE_OVERDUE_SENT_AT, ">", epoch).get(),
+    invoicesRef.where(OVERDUE_EMAIL_SENT_AT, ">", epoch).get(),
+    invoicesRef.where(OVERDUE_NOTIFIED_AT, ">", epoch).get(),
+  ]);
+  const clearedInvoiceIds = new Set<string>();
+  for (const snap of overdueDedupeSnaps) {
+    for (const doc of snap.docs) {
+      if (clearedInvoiceIds.has(doc.id)) continue;
+      const data = doc.data() as {
+        status?: string;
+        dueDate?: unknown;
+        [key: string]: unknown;
+      };
+      const due = toDateMaybe(data.dueDate);
+      const pastDue = due !== null && due.getTime() < now.getTime();
+      const open = isOpenInvoiceAwaitingPayment(data.status);
+      if (!pastDue || !open) {
+        clearedInvoiceIds.add(doc.id);
+        await doc.ref.update({
+          [INVOICE_OVERDUE_SENT_AT]: FieldValue.delete(),
+          [OVERDUE_EMAIL_SENT_AT]: FieldValue.delete(),
+          [OVERDUE_NOTIFIED_AT]: FieldValue.delete(),
+        });
+        overdueInvoice.cleared += 1;
+        console.log("[client-notifications] cleared invoice overdue flags", { tenantId, invoiceId: doc.id });
+      }
     }
   }
 
@@ -204,105 +183,13 @@ export async function processClientNotificationsForTenant(tenantId: string): Pro
     }
   }
 
-  // --- overdue_invoice ---
-  const invoiceEligible = (raw: Record<string, unknown>) => {
-    const data = raw as { status?: string; dueDate?: unknown };
-    if (!isUnpaidOrOverdueInvoice(data.status)) return false;
-    const due = toDateMaybe(data.dueDate);
-    return !!(due && due.getTime() < now.getTime());
-  };
-
-  const dueSnap = await invoicesRef.where("dueDate", "<=", nowTs).limit(500).get();
-  for (const doc of dueSnap.docs) {
-    const raw = doc.data() as Record<string, unknown>;
-    const data = raw as {
-      clientId?: string;
-      clientName?: string;
-      status?: string;
-      dueDate?: unknown;
-      amount?: unknown;
-      currency?: string;
-      invoiceNumber?: string;
-      number?: string;
-    };
-
-    if (!invoiceEligible(raw)) continue;
-    if (raw[INVOICE_OVERDUE_SENT_AT] != null) {
-      overdueInvoice.skip.alreadyNotified += 1;
-      continue;
-    }
-
-    const clientId = data.clientId;
-    if (!clientId) {
-      overdueInvoice.skip.missingClientId += 1;
-      console.warn("[client-notifications] overdue_invoice skip missingClientId", { tenantId, invoiceId: doc.id });
-      continue;
-    }
-
-    const clientSnap = await db.collection("tenants").doc(tenantId).collection("clients").doc(clientId).get();
-    if (!clientSnap.exists) {
-      overdueInvoice.failed += 1;
-      console.error("[client-notifications] overdue_invoice fail clientNotFound", { tenantId, clientId, invoiceId: doc.id });
-      continue;
-    }
-    const client = clientSnap.data() as { email?: string; name?: string };
-    const to = client.email?.trim();
-    if (!to) {
-      overdueInvoice.skip.missingEmail += 1;
-      console.warn("[client-notifications] overdue_invoice skip missingEmail", { tenantId, clientId, invoiceId: doc.id });
-      continue;
-    }
-
-    const due = toDateMaybe(data.dueDate)!;
-    const invoiceNumber = String(data.invoiceNumber ?? data.number ?? doc.id);
-    const amountLabel = formatAmount(data.amount, data.currency);
-    const dueDateLabel = formatDateLabel(due);
-    const clientName = client.name?.trim() || clientId;
-
-    const claim = await tryClaimNotificationDedupe(db, doc.ref, INVOICE_OVERDUE_SENT_AT, invoiceEligible);
-    if (claim === "already_notified") {
-      overdueInvoice.skip.alreadyNotified += 1;
-      continue;
-    }
-    if (claim !== "claimed") {
-      overdueInvoice.skip.claimNotTaken += 1;
-      console.log("[client-notifications] overdue_invoice skip claimNotTaken", {
-        tenantId,
-        invoiceId: doc.id,
-        outcome: claim,
-        dedupeField: INVOICE_OVERDUE_SENT_AT,
-      });
-      continue;
-    }
-
-    try {
-      await sendClientOverdueInvoiceEmail({
-        to,
-        clientName,
-        tenantName,
-        invoiceId: doc.id,
-        invoiceNumber,
-        amountLabel,
-        dueDateLabel,
-      });
-      overdueInvoice.sent += 1;
-      console.log("[client-notifications] overdue_invoice ok sent", {
-        tenantId,
-        invoiceId: doc.id,
-        to,
-        dedupeField: INVOICE_OVERDUE_SENT_AT,
-      });
-    } catch (e) {
-      await doc.ref.update({ [INVOICE_OVERDUE_SENT_AT]: FieldValue.delete() }).catch(() => {});
-      overdueInvoice.failed += 1;
-      console.error("[client-notifications] overdue_invoice fail send", {
-        tenantId,
-        invoiceId: doc.id,
-        dedupeField: INVOICE_OVERDUE_SENT_AT,
-        err: e instanceof Error ? e.message : e,
-      });
-    }
-  }
+  // --- overdue_invoice (portal notifications + one email per invoice spell) ---
+  const overdueResult = await generateOverdueInvoiceNotifications(tenantId, tenantName, now);
+  Object.assign(overdueInvoice, overdueResult.metrics);
+  console.log("[client-notifications] overdue portal upserts", {
+    tenantId,
+    portalNotificationsUpserted: overdueResult.portalNotificationsUpserted,
+  });
 
   // --- service_waiting_client (canonical + common stored variants) ---
   const serviceEligible = (raw: Record<string, unknown>) => {

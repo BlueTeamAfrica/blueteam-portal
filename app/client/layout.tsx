@@ -10,6 +10,8 @@ import { useUserProfile } from "@/lib/userProfileContext";
 import { useTenant } from "@/lib/tenantContext";
 import { collection, getDocs, query, where } from "firebase/firestore";
 import { isWaitingClientHealth, isTicketReplyNeeded } from "@/lib/clientPortalSignals";
+import NotificationBell from "@/components/notifications/NotificationBell";
+import { useNotificationUnreadCount } from "@/hooks/useNotificationUnreadCount";
 
 const nav = [
   { href: "/client/dashboard", label: "Dashboard" },
@@ -18,6 +20,7 @@ const nav = [
   { href: "/client/invoices", label: "Invoices" },
   { href: "/client/subscriptions", label: "Subscriptions" },
   { href: "/client/support", label: "Support" },
+  { href: "/client/notifications", label: "Notifications" },
 ];
 
 function NavLinks({
@@ -27,6 +30,7 @@ function NavLinks({
   invoicesUnpaidCount,
   invoicesOverdueCount,
   ticketsReplyNeededCount,
+  notificationCount,
 }: {
   pathname: string;
   onNavigate?: () => void;
@@ -34,6 +38,7 @@ function NavLinks({
   invoicesUnpaidCount: number;
   invoicesOverdueCount: number;
   ticketsReplyNeededCount: number;
+  notificationCount: number;
 }) {
   return (
     <>
@@ -72,6 +77,11 @@ function NavLinks({
                 {ticketsReplyNeededCount}
               </span>
             ) : null}
+            {item.href === "/client/notifications" && notificationCount > 0 ? (
+              <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold bg-rose-50 text-rose-800 border border-rose-200">
+                {notificationCount > 9 ? "9+" : notificationCount}
+              </span>
+            ) : null}
           </span>
         </Link>
       ))}
@@ -90,7 +100,8 @@ export default function ClientLayout({
   const pathname = usePathname();
   const { user, loading: authLoading } = useAuth();
   const { role, loading } = useUserProfile();
-  const { tenant, clientId } = useTenant();
+  const { tenant, clientId, role: tenantRole } = useTenant();
+  const notificationCount = useNotificationUnreadCount(tenant?.id, tenantRole, clientId);
   const [drawerOpen, setDrawerOpen] = useState(false);
 
   const [servicesNeedsInputCount, setServicesNeedsInputCount] = useState(0);
@@ -253,13 +264,23 @@ export default function ClientLayout({
           </button>
           <span className="text-[#0F172A] font-semibold truncate">Client Portal</span>
         </div>
-        <button
-          type="button"
-          onClick={() => signOut(auth).then(() => router.replace("/login"))}
-          className="text-sm text-slate-500 hover:text-[#0F172A] shrink-0"
-        >
-          Logout
-        </button>
+        <div className="flex items-center gap-1 shrink-0">
+          {tenant?.id ? (
+            <NotificationBell
+              tenantId={tenant.id}
+              role={tenantRole}
+              clientId={clientId}
+              listPath="/client/notifications"
+            />
+          ) : null}
+          <button
+            type="button"
+            onClick={() => signOut(auth).then(() => router.replace("/login"))}
+            className="text-sm text-slate-500 hover:text-[#0F172A] shrink-0"
+          >
+            Logout
+          </button>
+        </div>
       </header>
 
       {/* Mobile overlay drawer — fixed, does not shrink main column */}
@@ -297,6 +318,7 @@ export default function ClientLayout({
                 invoicesUnpaidCount={invoicesUnpaidCount}
                 invoicesOverdueCount={invoicesOverdueCount}
                 ticketsReplyNeededCount={ticketsReplyNeededCount}
+                notificationCount={notificationCount}
               />
             </nav>
           </aside>
@@ -315,13 +337,22 @@ export default function ClientLayout({
             invoicesUnpaidCount={invoicesUnpaidCount}
             invoicesOverdueCount={invoicesOverdueCount}
             ticketsReplyNeededCount={ticketsReplyNeededCount}
+            notificationCount={notificationCount}
           />
         </nav>
       </aside>
 
       {/* Main column: full width of viewport on mobile; drawer is position:fixed and does not participate in flex sizing */}
       <div className="flex flex-1 flex-col min-w-0 w-full max-w-full md:min-h-0">
-        <header className="hidden md:flex h-14 w-full bg-white border-b border-slate-200 items-center justify-end px-6 shrink-0">
+        <header className="hidden md:flex h-14 w-full bg-white border-b border-slate-200 items-center justify-end gap-2 px-6 shrink-0">
+          {tenant?.id ? (
+            <NotificationBell
+              tenantId={tenant.id}
+              role={tenantRole}
+              clientId={clientId}
+              listPath="/client/notifications"
+            />
+          ) : null}
           <button
             type="button"
             onClick={() => signOut(auth).then(() => router.replace("/login"))}
