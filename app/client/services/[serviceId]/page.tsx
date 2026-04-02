@@ -241,6 +241,41 @@ export default function ClientServiceDetailPage() {
   }
   if (!service) return <p className="text-[#0F172A]">Service not found.</p>;
 
+  const healthNormalized = normalizeHealth(service.health ?? "");
+  const isWaitingClient = healthNormalized === "waiting_client";
+  const summaryText = (service.operationalSummary ?? service.description ?? "").trim() || "—";
+
+  const nextActionText = service.nextAction?.trim() ?? "";
+  const nextPrimaryLine = isWaitingClient
+    ? nextActionText
+      ? `We need ${nextActionText} from you`
+      : "We need your input to continue"
+    : nextActionText || "No next step scheduled";
+
+  const nextDueFormatted = service.nextActionDue ? formatDate(service.nextActionDue ?? null) : null;
+  const billingTypeLower = (service.billingType ?? "").toLowerCase();
+  const nextDueLine = nextDueFormatted
+    ? billingTypeLower === "recurring"
+      ? `Renewal is coming up on ${nextDueFormatted}`
+      : isWaitingClient
+        ? `Due: ${nextDueFormatted}`
+        : `Target: ${nextDueFormatted}`
+    : "Target date: —";
+
+  const renewalValue = service.nextBillingDate ?? service.renewalDate ?? null;
+  const renewalLabel = renewalValue ? formatDate(renewalValue ?? null) : "—";
+
+  const hasSubscription = Boolean(service.subscriptionId);
+  const showInvoiceAction = billingTypeLower === "one_time";
+  const showSubscriptionAction = hasSubscription;
+
+  const priceLabel =
+    typeof service.price === "number"
+      ? service.currency
+        ? `${service.currency} ${service.price.toLocaleString()}`
+        : service.price.toLocaleString()
+      : "—";
+
   return (
     <div className="max-w-full min-w-0 overflow-x-hidden">
       <div className="flex items-center justify-between gap-3 flex-wrap min-w-0">
@@ -248,12 +283,6 @@ export default function ClientServiceDetailPage() {
           ← Back to services
         </Link>
         <div className="flex flex-wrap gap-2">
-          <Link
-            href={supportHref}
-            className="inline-flex px-3 py-2 rounded-lg bg-[#4F46E5] text-white text-sm font-medium hover:bg-indigo-600 transition-colors"
-          >
-            Open support ticket
-          </Link>
           {service.projectId ? (
             <Link
               href="/client/projects"
@@ -271,132 +300,146 @@ export default function ClientServiceDetailPage() {
         </div>
       )}
 
-      <div className="mt-4 bg-white rounded-2xl shadow-sm border border-slate-200 p-5 md:p-6 max-w-full min-w-0">
-        <h1 className="text-[#0F172A] text-2xl font-semibold break-words">{service.name ?? "Service"}</h1>
-        <div className="mt-2 flex flex-wrap gap-2">
-          <StatusBadge status={service.status} />
-          <span className="inline-flex px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-700 capitalize">
-            {service.category ?? "—"}
-          </span>
-          {service.tier ? (
-            <span className="inline-flex px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-50 text-indigo-700">
-              Tier: {service.tier}
-            </span>
+      <div className="mt-4 space-y-4 md:space-y-6">
+        {/* Overview */}
+        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5 md:p-6 max-w-full min-w-0">
+          <div className="flex items-start justify-between gap-4 flex-wrap min-w-0">
+            <div className="min-w-0">
+              <h1 className="text-[#0F172A] text-2xl font-semibold break-words">{service.name ?? "Service"}</h1>
+              <div className="mt-2 flex flex-wrap gap-2 items-center">
+                <StatusBadge status={service.status} />
+                <span className="inline-flex px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-700 capitalize">
+                  {service.category ?? "—"}
+                </span>
+                {service.tier ? (
+                  <span className="inline-flex px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-50 text-indigo-700">
+                    Tier: {service.tier}
+                  </span>
+                ) : null}
+              </div>
+            </div>
+          </div>
+          <p className="mt-3 text-slate-600 text-sm break-words">{summaryText}</p>
+        </div>
+
+        {/* Current Status */}
+        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5 md:p-6 max-w-full min-w-0">
+          <div className="flex items-start justify-between gap-4 flex-wrap">
+            <h2 className="text-[#0F172A] text-lg font-semibold break-words">Current Status</h2>
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-medium text-slate-500 uppercase tracking-wide">Health</span>
+              <HealthBadge health={service.health} />
+            </div>
+          </div>
+
+          <div className="mt-4 space-y-4">
+            <div>
+              <p className="text-xs text-slate-500">Health note</p>
+              <p className="mt-1 text-sm text-[#0F172A] whitespace-pre-wrap break-words">
+                {service.healthNote?.trim() ? service.healthNote : "—"}
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="bg-slate-50 rounded-xl p-4 border border-slate-100 min-w-0">
+                <p className="text-xs text-slate-500">Last checked</p>
+                <p className="mt-1 text-sm text-[#0F172A] font-medium break-words">
+                  {formatDateTime(service.lastCheckedAt ?? service.updatedAt ?? service.createdAt)}
+                </p>
+              </div>
+              <div className="bg-slate-50 rounded-xl p-4 border border-slate-100 min-w-0">
+                <p className="text-xs text-slate-500">Operational summary</p>
+                <p className="mt-1 text-sm text-slate-700 break-words whitespace-pre-wrap">
+                  {service.operationalSummary ?? "—"}
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* What Happens Next */}
+        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5 md:p-6 max-w-full min-w-0">
+          <h2 className="text-[#0F172A] text-lg font-semibold break-words">What Happens Next</h2>
+          <div className="mt-4 bg-slate-50 rounded-xl p-4 border border-slate-100 min-w-0">
+            <p className="text-xs text-slate-500">Next step</p>
+            <p className="mt-1 text-sm sm:text-base font-semibold text-[#0F172A] break-words">{nextPrimaryLine}</p>
+            <p className="mt-2 text-xs text-slate-500">{nextDueLine}</p>
+          </div>
+          {isWaitingClient ? (
+            <p className="mt-3 text-xs text-indigo-800/80 bg-indigo-50 border border-indigo-100 rounded-xl p-3">
+              We&apos;re waiting on you to complete this so we can keep everything moving.
+            </p>
           ) : null}
         </div>
-        <p className="mt-3 text-slate-600 text-sm break-words">
-          {service.description ?? "No description yet."}
-        </p>
-        <div className="mt-5 grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div className="bg-slate-50 rounded-xl p-4 border border-slate-100 min-w-0">
-            <p className="text-xs text-slate-500">Start date</p>
-            <p className="mt-1 text-[#0F172A] font-medium break-words">{formatDate(service.startDate ?? null)}</p>
-          </div>
-          <div className="bg-slate-50 rounded-xl p-4 border border-slate-100 min-w-0">
-            <p className="text-xs text-slate-500">Renewal date</p>
-            <p className="mt-1 text-[#0F172A] font-medium">{formatDate(service.renewalDate)}</p>
-          </div>
-          <div className="bg-slate-50 rounded-xl p-4 border border-slate-100 min-w-0">
-            <p className="text-xs text-slate-500">Linked project</p>
-            <p className="mt-1 text-[#0F172A] font-medium break-words">{service.projectName ?? service.projectId ?? "No linked project"}</p>
-          </div>
-          <div className="bg-slate-50 rounded-xl p-4 border border-slate-100 sm:col-span-2 min-w-0">
-            <p className="text-xs text-slate-500">Notes</p>
-            <p className="mt-1 text-sm text-[#0F172A] whitespace-pre-wrap break-words">{service.notes ?? "No notes yet."}</p>
-          </div>
-          <div className="bg-slate-50 rounded-xl p-4 border border-slate-100 min-w-0">
-            <p className="text-xs text-slate-500">Created</p>
-            <p className="mt-1 text-[#0F172A]">{formatDateTime(service.createdAt)}</p>
-          </div>
-          <div className="bg-slate-50 rounded-xl p-4 border border-slate-100 min-w-0">
-            <p className="text-xs text-slate-500">Updated</p>
-            <p className="mt-1 text-[#0F172A]">{formatDateTime(service.updatedAt)}</p>
-          </div>
-        </div>
-      </div>
 
-      <div className="mt-4 bg-white rounded-2xl shadow-sm border border-slate-200 p-5 md:p-6 max-w-full min-w-0">
-        <h2 className="text-[#0F172A] font-semibold break-words">Billing</h2>
-        <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div className="bg-slate-50 rounded-xl p-4 border border-slate-100 min-w-0">
-            <p className="text-xs text-slate-500">Billing type</p>
-            <p className="mt-1 text-sm text-[#0F172A] font-medium break-words">
-              {getBillingTypeLabel(service.billingType)}
-            </p>
-          </div>
-          <div className="bg-slate-50 rounded-xl p-4 border border-slate-100 min-w-0">
-            <p className="text-xs text-slate-500">Price</p>
-            <p className="mt-1 text-sm text-[#0F172A] font-medium break-words">
-              {typeof service.price === "number"
-                ? `${service.price.toLocaleString()}`
-                : "—"}
-            </p>
-          </div>
-          <div className="bg-slate-50 rounded-xl p-4 border border-slate-100 min-w-0">
-            <p className="text-xs text-slate-500">Currency</p>
-            <p className="mt-1 text-sm text-[#0F172A] font-medium break-words">{service.currency ?? "—"}</p>
-          </div>
-          <div className="bg-slate-50 rounded-xl p-4 border border-slate-100 min-w-0">
-            <p className="text-xs text-slate-500">Interval</p>
-            <p className="mt-1 text-sm text-[#0F172A] font-medium break-words">{service.interval ?? "—"}</p>
-          </div>
-          <div className="bg-slate-50 rounded-xl p-4 border border-slate-100 min-w-0">
-            <p className="text-xs text-slate-500">Next billing date</p>
-            <p className="mt-1 text-sm text-[#0F172A] font-medium break-words">
-              {formatDate(service.nextBillingDate ?? null)}
-            </p>
-          </div>
-          <div className="bg-slate-50 rounded-xl p-4 border border-slate-100 min-w-0">
-            <p className="text-xs text-slate-500">Subscription status</p>
-            <p className="mt-1 text-sm text-[#0F172A] font-medium break-words">{subStatus ?? "—"}</p>
-          </div>
-        </div>
-        <p className="mt-3 text-xs text-slate-500">
-          Billing is managed by Blueteam. If anything looks incorrect, open a support ticket and we’ll fix it.
-        </p>
-      </div>
-
-      <div className="mt-4 bg-white rounded-2xl shadow-sm border border-slate-200 p-5 md:p-6 max-w-full min-w-0 overflow-hidden">
-        <h2 className="text-[#0F172A] font-semibold break-words">Service health</h2>
-        <p className="mt-1 text-xs text-slate-500 max-w-2xl">
-          This is how Blueteam currently sees this service: status, what we are doing next, and any important notes. Contact us if something does not match what you expect.
-        </p>
-
-        <div className="mt-4 bg-slate-50 rounded-xl p-4 sm:p-5 border border-slate-100 min-w-0">
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="text-xs font-medium text-slate-500 uppercase tracking-wide">Status</span>
-            <HealthBadge health={service.health} />
+        {/* Billing & Renewal */}
+        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5 md:p-6 max-w-full min-w-0">
+          <div className="flex items-start justify-between gap-4 flex-wrap">
+            <h2 className="text-[#0F172A] text-lg font-semibold break-words">Billing & Renewal</h2>
+            <div className="flex flex-wrap gap-2">
+              {showSubscriptionAction ? (
+                <Link
+                  href="/client/subscriptions"
+                  className="inline-flex items-center justify-center px-3 py-2 rounded-lg bg-indigo-600 text-white text-sm font-medium hover:bg-indigo-500 transition-colors"
+                >
+                  View subscription
+                </Link>
+              ) : null}
+              {showInvoiceAction ? (
+                <Link
+                  href="/client/invoices"
+                  className="inline-flex items-center justify-center px-3 py-2 rounded-lg border border-slate-200 bg-white text-[#0F172A] text-sm font-medium hover:bg-slate-50 transition-colors"
+                >
+                  View invoices
+                </Link>
+              ) : null}
+            </div>
           </div>
 
-          <div className="mt-4">
-            <p className="text-xs text-slate-500">Note from Blueteam</p>
-            <p className="mt-1 text-sm text-[#0F172A] whitespace-pre-wrap break-words">
-              {service.healthNote?.trim() ? service.healthNote : "—"}
-            </p>
-          </div>
-
-          <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div className="bg-white/80 rounded-xl p-4 border border-slate-100/80 min-w-0">
-              <p className="text-xs text-slate-500">Last checked</p>
+          <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="bg-slate-50 rounded-xl p-4 border border-slate-100 min-w-0">
+              <p className="text-xs text-slate-500">Billing type</p>
+              <p className="mt-1 text-sm text-[#0F172A] font-medium break-words">{getBillingTypeLabel(service.billingType)}</p>
+            </div>
+            <div className="bg-slate-50 rounded-xl p-4 border border-slate-100 min-w-0">
+              <p className="text-xs text-slate-500">Renewal / next billing</p>
+              <p className="mt-1 text-sm text-[#0F172A] font-medium break-words">{renewalLabel}</p>
+            </div>
+            <div className="bg-slate-50 rounded-xl p-4 border border-slate-100 min-w-0">
+              <p className="text-xs text-slate-500">Subscription status</p>
+              <p className="mt-1 text-sm text-[#0F172A] font-medium break-words">{subStatus ?? "—"}</p>
+            </div>
+            <div className="bg-slate-50 rounded-xl p-4 border border-slate-100 min-w-0">
+              <p className="text-xs text-slate-500">Price</p>
               <p className="mt-1 text-sm text-[#0F172A] font-medium break-words">
-                {formatDateTime(service.lastCheckedAt ?? service.updatedAt ?? service.createdAt)}
-              </p>
-            </div>
-
-            <div className="bg-white/80 rounded-xl p-4 border border-slate-100/80 min-w-0">
-              <p className="text-xs text-slate-500">Next action</p>
-              <p className="mt-1 text-sm text-[#0F172A] font-medium break-words">{service.nextAction ?? "—"}</p>
-              <p className="text-xs text-slate-500 mt-2">
-                Due: {formatDate(service.nextActionDue ?? null)}
+                {priceLabel !== "—" ? priceLabel : "—"}
               </p>
             </div>
           </div>
+          <p className="mt-3 text-xs text-slate-500">
+            Billing is managed by Blueteam. If anything looks incorrect, open a support ticket and we’ll fix it.
+          </p>
+        </div>
 
-          <div className="mt-4 pt-4 border-t border-slate-200/80">
-            <p className="text-xs text-slate-500">Operational summary</p>
-            <p className="mt-2 text-sm text-slate-700 whitespace-pre-wrap break-words">
-              {service.operationalSummary ?? "—"}
-            </p>
+        {/* Need Help */}
+        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5 md:p-6 max-w-full min-w-0">
+          <h2 className="text-[#0F172A] text-lg font-semibold break-words">Need Help?</h2>
+          <p className="mt-1 text-xs text-slate-500">
+            If something doesn&apos;t match what you expected, open a ticket and we&apos;ll take care of it.
+          </p>
+          <div className="mt-4 flex flex-col sm:flex-row gap-3">
+            <Link
+              href={supportHref}
+              className="inline-flex items-center justify-center px-4 py-2.5 rounded-lg bg-[#4F46E5] text-white text-sm font-semibold hover:bg-indigo-600 transition-colors"
+            >
+              Open support ticket
+            </Link>
+            <Link
+              href="/client/support"
+              className="inline-flex items-center justify-center px-4 py-2.5 rounded-lg border border-slate-200 bg-white text-[#0F172A] text-sm font-medium hover:bg-slate-50 transition-colors"
+            >
+              Support inbox
+            </Link>
           </div>
         </div>
       </div>
