@@ -841,28 +841,59 @@ export default function ClientDashboardPage() {
             Action Required
           </h2>
         </div>
-        <div className="p-4 sm:p-5">
+        <div className="p-3 md:p-5">
           {actionRows.length === 0 ? (
             <p className="text-sm text-slate-600 text-center sm:text-left py-2">
               All good — nothing needs your attention
             </p>
           ) : (
-            <ul className="space-y-3 list-none p-0 m-0">
+            <ul className="space-y-2 md:space-y-3 list-none p-0 m-0">
               {actionRows.map((row) => (
                 <li key={row.id} className="min-w-0">
                   <Link
                     href={row.href}
                     aria-label={`${row.count} ${row.label}${row.amountLabel ? ` — ${row.amountLabel} total` : ""}. Tap to view`}
-                    className="group flex flex-col gap-3 rounded-xl border border-amber-200/80 bg-white px-4 py-4 min-h-[3.25rem] shadow-sm hover:border-amber-300 hover:bg-amber-50/60 transition-colors cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-[#4F46E5] focus-visible:ring-offset-2 sm:flex-row sm:items-center sm:justify-between sm:gap-4"
+                    className="group flex items-center justify-between rounded-xl border border-amber-200/80 bg-white px-3 py-3 min-h-[2.75rem] shadow-sm hover:border-amber-300 hover:bg-amber-50/60 transition-colors cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-[#4F46E5] focus-visible:ring-offset-2 md:px-4 md:py-4 md:min-h-[3.25rem]"
                   >
-                    <div className="flex items-start gap-3 min-w-0 flex-1">
+                    {/* Mobile (<md): compact single-row hierarchy */}
+                    <div className="md:hidden flex items-center gap-3 min-w-0 flex-1">
+                      <span
+                        className="shrink-0 flex h-10 w-10 items-center justify-center rounded-xl bg-amber-100 text-amber-950 text-2xl font-extrabold tabular-nums px-2"
+                        aria-hidden
+                      >
+                        {row.count}
+                      </span>
+                      <div className="min-w-0 flex-1 leading-snug">
+                        <p className="text-[#0F172A] font-semibold text-sm break-words">
+                          {row.count}{" "}
+                          <span aria-hidden>
+                            {row.label.charAt(0).toLowerCase()}
+                            {row.label.slice(1)}
+                          </span>
+                          <span className="sr-only">{row.label}</span>
+                        </p>
+                        {row.amountLabel ? (
+                          <p className="mt-0.5 text-xs font-medium text-amber-900/70">
+                            {row.amountLabel} total
+                          </p>
+                        ) : null}
+                      </div>
+                    </div>
+
+                    {/* Mobile chevron */}
+                    <span className="md:hidden shrink-0 text-slate-500 pr-1" aria-hidden>
+                      ›
+                    </span>
+
+                    {/* Desktop (md+): keep existing hierarchy */}
+                    <div className="hidden md:flex items-start gap-3 min-w-0 flex-1">
                       <span
                         className="shrink-0 flex h-12 w-12 items-center justify-center rounded-xl bg-amber-100 text-amber-950 text-3xl font-extrabold tabular-nums px-2"
                         aria-hidden
                       >
                         {row.count}
                       </span>
-                      <div className="min-w-0 flex-1 pt-0.5 sm:pt-0">
+                      <div className="min-w-0 flex-1 pt-0.5">
                         <p className="text-[#0F172A] font-semibold text-sm sm:text-base leading-snug break-words">
                           {row.label}
                           {row.amountLabel ? (
@@ -872,11 +903,12 @@ export default function ClientDashboardPage() {
                         <p className="mt-1 text-xs sm:text-sm font-medium text-amber-900/70">Tap to view</p>
                       </div>
                     </div>
+
                     <span
-                      className="shrink-0 inline-flex items-center justify-center min-h-9 rounded-lg bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-900 group-hover:bg-amber-100 transition-colors"
+                      className="hidden md:inline-flex shrink-0 items-center justify-center min-h-9 rounded-lg bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-900 group-hover:bg-amber-100 transition-colors"
                       aria-hidden
                     >
-                      -&gt;
+                      ›
                     </span>
                   </Link>
                 </li>
@@ -897,7 +929,7 @@ export default function ClientDashboardPage() {
         </div>
         <div className="p-4 sm:p-5">
           {comingUpItems.length === 0 ? (
-            <p className="text-sm text-slate-600 py-1">No upcoming actions</p>
+            <p className="text-sm text-slate-600 py-1">Nothing coming up right now</p>
           ) : (
             <ul className="divide-y divide-slate-100 list-none p-0 m-0">
               {comingUpItems.map((item) => (
@@ -936,17 +968,17 @@ export default function ClientDashboardPage() {
       </section>
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-6">
-        <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-5 min-w-0">
+        <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4 md:p-5 min-w-0">
           <div className="text-[11px] uppercase tracking-widest text-slate-500 font-semibold">Active Projects</div>
-          <div className="text-xl font-semibold text-slate-700 mt-2">{activeProjects}</div>
+          <div className="text-lg md:text-xl font-semibold text-slate-700 mt-1 md:mt-2">{activeProjects}</div>
         </div>
-        <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-5 min-w-0">
+        <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4 md:p-5 min-w-0">
           <div className="text-[11px] uppercase tracking-widest text-red-600 font-semibold">Unpaid Invoices</div>
-          <div className="text-xl font-semibold text-slate-700 mt-2">{unpaidInvoices}</div>
+          <div className="text-lg md:text-xl font-semibold text-slate-700 mt-1 md:mt-2">{unpaidInvoices}</div>
         </div>
-        <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-5 min-w-0">
+        <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4 md:p-5 min-w-0">
           <div className="text-[11px] uppercase tracking-widest text-slate-500 font-semibold">Total Invoices</div>
-          <div className="text-xl font-semibold text-slate-700 mt-2">{totalInvoices}</div>
+          <div className="text-lg md:text-xl font-semibold text-slate-700 mt-1 md:mt-2">{totalInvoices}</div>
         </div>
       </div>
 
