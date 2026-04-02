@@ -833,7 +833,7 @@ export default function ClientDashboardPage() {
         className="mt-6 rounded-2xl border border-amber-300/80 bg-gradient-to-b from-amber-50/100 to-white shadow-sm overflow-hidden max-w-full min-w-0"
         aria-labelledby="action-required-heading"
       >
-        <div className="px-4 py-3 sm:px-5 border-b border-amber-200/70 bg-amber-50/90">
+        <div className="px-4 py-2.5 sm:px-5 sm:py-3 border-b border-amber-200/70 bg-amber-50/90">
           <h2 id="action-required-heading" className="text-[#0F172A] text-lg font-extrabold tracking-tight">
             <span aria-hidden className="mr-2">
               ⚠️
@@ -841,24 +841,24 @@ export default function ClientDashboardPage() {
             Action Required
           </h2>
         </div>
-        <div className="p-3 md:p-5">
+        <div className="p-2.5 md:p-5">
           {actionRows.length === 0 ? (
             <p className="text-sm text-slate-600 text-center sm:text-left py-2">
               All good — nothing needs your attention
             </p>
           ) : (
-            <ul className="space-y-2 md:space-y-3 list-none p-0 m-0">
+            <ul className="space-y-1.5 md:space-y-3 list-none p-0 m-0">
               {actionRows.map((row) => (
                 <li key={row.id} className="min-w-0">
                   <Link
                     href={row.href}
                     aria-label={`${row.count} ${row.label}${row.amountLabel ? ` — ${row.amountLabel} total` : ""}. Tap to view`}
-                    className="group flex items-center justify-between rounded-xl border border-amber-200/80 bg-white px-3 py-3 min-h-[2.75rem] shadow-sm hover:border-amber-300 hover:bg-amber-50/60 transition-colors cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-[#4F46E5] focus-visible:ring-offset-2 md:px-4 md:py-4 md:min-h-[3.25rem]"
+                    className="group flex items-center justify-between rounded-xl border border-amber-200/80 bg-white px-3 py-2.5 min-h-[2.5rem] shadow-sm hover:border-amber-300 hover:bg-amber-50/60 transition-colors cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-[#4F46E5] focus-visible:ring-offset-2 md:px-4 md:py-4 md:min-h-[3.25rem]"
                   >
                     {/* Mobile (<md): compact single-row hierarchy */}
                     <div className="md:hidden flex items-center gap-3 min-w-0 flex-1">
                       <span
-                        className="shrink-0 flex h-10 w-10 items-center justify-center rounded-xl bg-amber-100 text-amber-950 text-2xl font-extrabold tabular-nums px-2"
+                        className="shrink-0 flex h-9 w-9 items-center justify-center rounded-xl bg-amber-100 text-amber-950 text-xl font-extrabold tabular-nums px-2"
                         aria-hidden
                       >
                         {row.count}
@@ -968,17 +968,17 @@ export default function ClientDashboardPage() {
       </section>
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-6">
-        <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4 md:p-5 min-w-0">
+        <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-3 md:p-5 min-w-0">
           <div className="text-[11px] uppercase tracking-widest text-slate-500 font-semibold">Active Projects</div>
-          <div className="text-lg md:text-xl font-semibold text-slate-700 mt-1 md:mt-2">{activeProjects}</div>
+          <div className="text-lg md:text-xl font-semibold text-slate-700 mt-0.5 md:mt-2">{activeProjects}</div>
         </div>
-        <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4 md:p-5 min-w-0">
+        <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-3 md:p-5 min-w-0">
           <div className="text-[11px] uppercase tracking-widest text-red-600 font-semibold">Unpaid Invoices</div>
-          <div className="text-lg md:text-xl font-semibold text-slate-700 mt-1 md:mt-2">{unpaidInvoices}</div>
+          <div className="text-lg md:text-xl font-semibold text-slate-700 mt-0.5 md:mt-2">{unpaidInvoices}</div>
         </div>
-        <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4 md:p-5 min-w-0">
+        <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-3 md:p-5 min-w-0">
           <div className="text-[11px] uppercase tracking-widest text-slate-500 font-semibold">Total Invoices</div>
-          <div className="text-lg md:text-xl font-semibold text-slate-700 mt-1 md:mt-2">{totalInvoices}</div>
+          <div className="text-lg md:text-xl font-semibold text-slate-700 mt-0.5 md:mt-2">{totalInvoices}</div>
         </div>
       </div>
 
