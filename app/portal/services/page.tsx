@@ -409,49 +409,9 @@ export default function PortalServicesPage() {
         return;
       }
 
-      const payload: Record<string, unknown> = {
-        name: categoryOpt.label,
-        clientId: canonicalClientId,
-        clientName: selectedClient.name ?? selectedClient.email ?? selectedClient.id,
-        category: categoryOpt.value,
-        categoryLabel: categoryOpt.label,
-        status: formStatus,
-        startDate: Timestamp.fromDate(start),
-        renewalDate: renewal ? Timestamp.fromDate(renewal) : undefined,
-        notes: formNotes.trim() || "",
-        billingType,
-        price: priceNumber ?? undefined,
-        currency: formCurrency.trim() || undefined,
-        interval: billingType === "recurring" ? interval : undefined,
-        nextBillingDate: undefined,
-        subscriptionId: null,
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
-      };
+      const currencyTrim = formCurrency.trim();
 
-      // Strip optional undefined values (Firestore rejects undefined fields)
-      if (!renewal) delete payload.renewalDate;
-      if (priceNumber == null) delete payload.price;
-      if (!formCurrency.trim()) delete payload.currency;
-      if (billingType !== "recurring") delete payload.interval;
-      if (!selectedProject) {
-        delete payload.projectId;
-        delete payload.projectName;
-      } else {
-        payload.projectId = selectedProject.id;
-        payload.projectName = selectedProject.name ?? selectedProject.id;
-      }
-
-      // NOTE: we intentionally omit projectId/projectName unless selected.
-      if (!payload.projectId && selectedProject) {
-        payload.projectId = selectedProject.id;
-      }
-
-      const created = await addDoc(
-        collection(db, "tenants", tenant.id, "services"),
-        payload
-      );
-
+      let nextBillingTs: Timestamp | null = null;
       if (billingType === "recurring") {
         const nextBillingDate = formNextBillingDate
           ? new Date(formNextBillingDate)
@@ -460,16 +420,61 @@ export default function PortalServicesPage() {
           setCreateError("Please provide a valid next billing date.");
           return;
         }
+        nextBillingTs = Timestamp.fromDate(nextBillingDate);
+      }
+
+      const payload: Record<string, unknown> = {
+        name: categoryOpt.label,
+        clientId: canonicalClientId,
+        clientName: selectedClient.name ?? selectedClient.email ?? selectedClient.id,
+        category: categoryOpt.value,
+        categoryLabel: categoryOpt.label,
+        status: formStatus,
+        startDate: Timestamp.fromDate(start),
+        notes: formNotes.trim() || "",
+        billingType,
+        subscriptionId: null,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      };
+
+      if (renewal) {
+        payload.renewalDate = Timestamp.fromDate(renewal);
+      }
+      if (priceNumber != null && !Number.isNaN(priceNumber)) {
+        payload.price = priceNumber;
+      }
+      if (currencyTrim) {
+        payload.currency = currencyTrim.toUpperCase();
+      }
+      if (billingType === "recurring") {
+        payload.interval = interval;
+        if (nextBillingTs) {
+          payload.nextBillingDate = nextBillingTs;
+        }
+      }
+      if (selectedProject) {
+        const pname = selectedProject.name?.trim();
+        payload.projectId = selectedProject.id;
+        payload.projectName = pname || selectedProject.id;
+      }
+
+      const created = await addDoc(
+        collection(db, "tenants", tenant.id, "services"),
+        payload
+      );
+
+      if (billingType === "recurring" && nextBillingTs) {
         const sub = await addDoc(collection(db, "tenants", tenant.id, "subscriptions"), {
           clientId: canonicalClientId,
           clientName: selectedClient.name ?? selectedClient.email ?? selectedClient.id,
           name: categoryOpt.label,
           price: priceNumber ?? 0,
-          currency: formCurrency.trim() || "USD",
+          currency: currencyTrim.toUpperCase() || "USD",
           interval,
           status: "active",
           startDate: Timestamp.fromDate(start),
-          nextBillingDate: Timestamp.fromDate(nextBillingDate),
+          nextBillingDate: nextBillingTs,
           createdAt: serverTimestamp(),
           updatedAt: serverTimestamp(),
           source: "service",
@@ -478,7 +483,6 @@ export default function PortalServicesPage() {
 
         await updateDoc(doc(db, "tenants", tenant.id, "services", created.id), {
           subscriptionId: sub.id,
-          nextBillingDate: Timestamp.fromDate(nextBillingDate),
           updatedAt: serverTimestamp(),
         });
       }
