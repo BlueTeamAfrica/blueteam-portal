@@ -47,6 +47,16 @@ export async function assertStaffCanManageServices(uid: string, tenantId: string
   await assertStaffCanManageInvoices(uid, tenantId);
 }
 
+/** True if uid is owner/admin for tenant (same resolution as invoice APIs). */
+export async function isTenantStaffMember(uid: string, tenantId: string): Promise<boolean> {
+  try {
+    await assertStaffCanManageInvoices(uid, tenantId);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export async function assertTenantAllowsInvoiceCreate(tenantId: string): Promise<void> {
   const db = adminDb();
   const tSnap = await db.collection("tenants").doc(tenantId).get();

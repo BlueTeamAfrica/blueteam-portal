@@ -275,12 +275,20 @@ export default function ClientServiceDetailPage() {
       });
       const data = (await res.json().catch(() => ({}))) as { error?: string };
       if (!res.ok) {
-        setRespondError(
+        const r = (role ?? "").toLowerCase();
+        const staffPortal = r === "owner" || r === "admin";
+        const clientForbidden = "You do not have permission to respond to this request.";
+        let errMsg =
           data.error ??
-            (res.status === 403
-              ? "You do not have permission to respond to this request."
-              : "Could not send your response.")
-        );
+          (res.status === 403
+            ? staffPortal
+              ? "Could not submit your response. Please try again."
+              : clientForbidden
+            : "Could not send your response.");
+        if (res.status === 403 && staffPortal && errMsg === clientForbidden) {
+          errMsg = "Could not submit your response. Please try again.";
+        }
+        setRespondError(errMsg);
         return;
       }
       setRespondSuccess("Thanks — your team has been notified.");

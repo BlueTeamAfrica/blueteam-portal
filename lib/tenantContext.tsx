@@ -80,7 +80,7 @@ export function TenantProvider({ children }: { children: React.ReactNode }) {
           const mapId = `${uid}_${tenantIdFromUser}`;
           const utSnap = await getDoc(doc(db, "userTenants", mapId));
           const ut = utSnap.data() as { role?: string; clientId?: string } | undefined;
-          setRole(ut?.role);
+          setRole(ut?.role ?? userRole);
           setClientId(ut?.clientId);
           return;
         }
