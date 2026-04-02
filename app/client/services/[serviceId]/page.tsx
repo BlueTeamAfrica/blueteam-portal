@@ -459,13 +459,19 @@ export default function ClientServiceDetailPage() {
                     Requested {formatDateTime(service.clientActionRequestedAt)}
                   </p>
                 ) : null}
-                <p className="mt-3 text-xs text-slate-700">
-                  Reply via{" "}
-                  <Link href="/client/support" className="font-semibold text-indigo-700 hover:underline">
-                    support
-                  </Link>{" "}
-                  or your usual contact so we can continue this service.
-                </p>
+                {structuredInputPending ? (
+                  <p className="mt-3 text-xs text-slate-700">
+                    Submit your response below to continue this service.
+                  </p>
+                ) : (
+                  <p className="mt-3 text-xs text-slate-700">
+                    Reply via{" "}
+                    <Link href="/client/support" className="font-semibold text-indigo-700 hover:underline">
+                      support
+                    </Link>{" "}
+                    or your usual contact so we can continue this service.
+                  </p>
+                )}
               </div>
             </div>
           </div>
@@ -561,7 +567,7 @@ export default function ClientServiceDetailPage() {
               }`}
             >
               {structuredInputPending
-                ? "Please provide what was requested above so your team can proceed."
+                ? "Submit your response using the form on this page so your team can proceed."
                 : "Reply to this so we can move the service forward."}
             </p>
           ) : null}
