@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { collection, getDocs, addDoc, doc, updateDoc, serverTimestamp, Timestamp } from "firebase/firestore";
+import { useEffect, useMemo, useState } from "react";
+import { collection, getDocs, addDoc, doc, getDoc, updateDoc, serverTimestamp, Timestamp } from "firebase/firestore";
 import { auth, db } from "@/lib/firebase";
 import { useAuth } from "@/lib/authContext";
 import { useTenant } from "@/lib/tenantContext";
+import { getBillingPlanIdFromTenant } from "@/lib/tenantBillingPlan";
 import { PORTAL_SELECT_CLASS, PORTAL_SELECT_LABEL_CLASS } from "@/lib/portalSelectStyles";
 import { SelectArrowWrap } from "@/components/portal/SelectArrowWrap";
 
@@ -22,9 +23,14 @@ type Invoice = {
   source?: string;
 };
 
+function isAdminOrOwnerRole(role: string | undefined): boolean {
+  const r = (role ?? "").trim().toLowerCase();
+  return r === "admin" || r === "owner";
+}
+
 export default function InvoicesPage() {
   const { user } = useAuth();
-  const { tenant } = useTenant();
+  const { tenant, role, loading: tenantCtxLoading } = useTenant();
   const [clients, setClients] = useState<Client[]>([]);
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [loading, setLoading] = useState(true);
@@ -68,6 +74,58 @@ export default function InvoicesPage() {
   } | null>(null);
 
   const [sendingTestEmail, setSendingTestEmail] = useState(false);
+
+  const isAdminOrOwner = isAdminOrOwnerRole(role);
+  const [invoiceCreateAllowed, setInvoiceCreateAllowed] = useState(false);
+  const [invoicePermResolved, setInvoicePermResolved] = useState(false);
+
+  const billingPlanId = useMemo(() => getBillingPlanIdFromTenant(tenant), [tenant]);
+
+  useEffect(() => {
+    if (!tenant?.id) {
+      setInvoiceCreateAllowed(false);
+      setInvoicePermResolved(false);
+      return;
+    }
+    if (!isAdminOrOwner) {
+      setInvoiceCreateAllowed(false);
+      setInvoicePermResolved(true);
+      return;
+    }
+
+    let alive = true;
+    setInvoicePermResolved(false);
+
+    (async () => {
+      try {
+        const permRef = doc(db, "tenants", tenant.id, "planPermissions", billingPlanId);
+        const snap = await getDoc(permRef);
+        const allowed = !snap.exists() || snap.data()?.canInvoices !== false;
+        if (alive) {
+          setInvoiceCreateAllowed(allowed);
+          setInvoicePermResolved(true);
+        }
+      } catch (e) {
+        console.warn("[portal/invoices] planPermissions read failed", e);
+        if (alive) {
+          setInvoiceCreateAllowed(false);
+          setInvoicePermResolved(true);
+        }
+      }
+    })();
+
+    return () => {
+      alive = false;
+    };
+  }, [tenant?.id, billingPlanId, isAdminOrOwner]);
+
+  const canUseAddInvoice =
+    !tenantCtxLoading && isAdminOrOwner && invoicePermResolved && invoiceCreateAllowed;
+
+  useEffect(() => {
+    if (!invoicePermResolved) return;
+    if (!canUseAddInvoice) setShowForm(false);
+  }, [invoicePermResolved, canUseAddInvoice]);
 
   async function loadData() {
     if (!tenant?.id) return;
@@ -128,6 +186,11 @@ export default function InvoicesPage() {
   async function handleAddInvoice(e: React.FormEvent) {
     e.preventDefault();
     if (!tenant?.id) return;
+
+    if (!canUseAddInvoice) {
+      setFormError("Only admins can create invoices. If you are an admin, your plan may not include invoicing.");
+      return;
+    }
 
     setFormError(null);
 
@@ -407,8 +470,15 @@ export default function InvoicesPage() {
   }
 
   if (!user) return <p className="text-[#0F172A]">Please log in</p>;
-  if (!tenant) return <p className="text-[#0F172A]">Loading tenant…</p>;
+  if (tenantCtxLoading || !tenant) return <p className="text-[#0F172A]">Loading tenant…</p>;
   if (loading) return <p className="text-[#0F172A]">Loading invoices…</p>;
+
+  const emptyInvoicesHint = (() => {
+    if (!invoicePermResolved) return "Invoices you add or generate will appear here.";
+    if (!isAdminOrOwner) return "Only admins can create invoices.";
+    if (!invoiceCreateAllowed) return "Manual invoicing is not included in your current plan.";
+    return "Click \"Add Invoice\" to create your first invoice.";
+  })();
 
   return (
     <div className="max-w-full min-w-0">
@@ -434,20 +504,22 @@ export default function InvoicesPage() {
             </button>
             <p className="text-xs text-slate-500 mt-0.5">Use for SMTP testing</p>
           </div>
-          <button
-            type="button"
-            onClick={() => {
-              setFormError(null);
-              setShowForm((v) => !v);
-            }}
-            className="px-3 py-2 sm:px-4 rounded-lg bg-[#4F46E5] text-white text-sm font-medium hover:bg-indigo-600 transition-colors whitespace-nowrap"
-          >
-            ➕ Add Invoice
-          </button>
+          {canUseAddInvoice ? (
+            <button
+              type="button"
+              onClick={() => {
+                setFormError(null);
+                setShowForm((v) => !v);
+              }}
+              className="px-3 py-2 sm:px-4 rounded-lg bg-[#4F46E5] text-white text-sm font-medium hover:bg-indigo-600 transition-colors whitespace-nowrap"
+            >
+              ➕ Add Invoice
+            </button>
+          ) : null}
         </div>
       </div>
 
-      {showForm && (
+      {showForm && canUseAddInvoice ? (
         <form
           onSubmit={handleAddInvoice}
           className="mt-4 md:mt-6 bg-white rounded-xl shadow-sm border border-slate-200 p-4 md:p-6 space-y-4 max-w-full"
@@ -542,7 +614,7 @@ export default function InvoicesPage() {
             </button>
           </div>
         </form>
-      )}
+      ) : null}
 
       {invoices.length > 0 ? (
         <>
@@ -676,7 +748,7 @@ export default function InvoicesPage() {
       {invoices.length === 0 && (
         <div className="mt-4 md:mt-6 bg-white rounded-xl shadow-sm border border-slate-200 p-6 md:p-12 text-center max-w-full">
           <p className="text-slate-500 text-lg">No invoices yet</p>
-          <p className="text-slate-400 text-sm mt-1">Click {"\"Add Invoice\""} to create your first invoice.</p>
+          <p className="text-slate-400 text-sm mt-1">{emptyInvoicesHint}</p>
         </div>
       )}
 
