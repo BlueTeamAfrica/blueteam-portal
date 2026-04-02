@@ -2,13 +2,24 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{db}/documents {
 
+    // Plan id safe for planPermissions/{id} path: only string/number scalars (object/map plan fields would break path resolution).
+    function safeBillingPlanSegment(v) {
+      return v is string
+        ? (v.size() > 0 ? v : null)
+        : v is int
+        ? string(v)
+        : v is float
+        ? string(v)
+        : null;
+    }
+
     // Subscription plan when subscription is a map with plan; otherwise null (never chain .plan off missing/non-map subscription).
     function tenantSubscriptionPlanId(tenant) {
       return ('subscription' in tenant.data)
         && tenant.data.subscription is map
         && ('plan' in tenant.data.subscription)
         && tenant.data.subscription.plan != null
-        ? tenant.data.subscription.plan
+        ? safeBillingPlanSegment(tenant.data.subscription.plan)
         : null;
     }
 
@@ -16,12 +27,14 @@ service cloud.firestore {
     function getBillingPlanId(tenantId) {
       let tenant = get(/databases/$(db)/documents/tenants/$(tenantId));
       let subPlan = tenantSubscriptionPlanId(tenant);
+      let topPlan = ('plan' in tenant.data) ? safeBillingPlanSegment(tenant.data.plan) : null;
+      let billId = ('billingPlanId' in tenant.data) ? safeBillingPlanSegment(tenant.data.billingPlanId) : null;
       return subPlan != null
         ? subPlan
-        : tenant.data.plan != null
-        ? tenant.data.plan
-        : tenant.data.billingPlanId != null
-        ? tenant.data.billingPlanId
+        : topPlan != null
+        ? topPlan
+        : billId != null
+        ? billId
         : 'starter';
     }
 
@@ -70,11 +83,11 @@ service cloud.firestore {
         && exists(/databases/$(db)/documents/userTenants/$(request.auth.uid + "_blueteam"));
     }
 
-    // Helper function to get user role
+    // Role from userTenants/{uid}_{tenantId}; use exists() before get() so a missing map doc does not fail rule evaluation.
     function getUserRole(tenantId) {
       let userTenantId = request.auth.uid + "_" + tenantId;
-      let userTenant = get(/databases/$(db)/documents/userTenants/$(userTenantId));
-      return userTenant.data.role;
+      let utPath = /databases/$(db)/documents/userTenants/$(userTenantId);
+      return exists(utPath) ? get(utPath).data.role : null;
     }
 
     // Helper function to check if user is admin or owner

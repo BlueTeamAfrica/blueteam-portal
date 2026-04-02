@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { collection, getDocs, addDoc, doc, getDoc, updateDoc, serverTimestamp, Timestamp } from "firebase/firestore";
 import { auth, db } from "@/lib/firebase";
 import { useAuth } from "@/lib/authContext";
@@ -81,6 +81,8 @@ export default function InvoicesPage() {
     isAdminOrOwnerRole(role) || isAdminOrOwnerRole(membershipRoleFromUt);
   const [invoiceCreateAllowed, setInvoiceCreateAllowed] = useState(false);
   const [invoicePermResolved, setInvoicePermResolved] = useState(false);
+  /** Plan-side flag: missing doc or canInvoices !== false (same idea as firestore tenantPlanAllowsInvoiceCreate). */
+  const [resolvedCanInvoices, setResolvedCanInvoices] = useState<boolean | null>(null);
 
   const billingPlanId = useMemo(() => getBillingPlanIdFromTenant(tenant), [tenant]);
 
@@ -89,6 +91,7 @@ export default function InvoicesPage() {
       setMembershipRoleFromUt(undefined);
       setInvoiceCreateAllowed(false);
       setInvoicePermResolved(false);
+      setResolvedCanInvoices(null);
       return;
     }
     if (tenantCtxLoading) {
@@ -124,17 +127,29 @@ export default function InvoicesPage() {
           setMembershipRoleFromUt(utRole);
         }
 
-        const canManageInvoices =
+        const allowCreateFromSnapshot =
           !tenantCtxLoading && isAdminCombined && canInvoicesResolved;
 
-        console.info("[portal/invoices][perm] runtime identity + invoice gate", {
-          "auth.currentUser.uid": auth.currentUser?.uid ?? null,
-          "auth.currentUser.email": auth.currentUser?.email ?? null,
+        console.info("[portal/invoices][perm] create permission snapshot (client reads)", {
+          currentAuthUid: auth.currentUser?.uid ?? null,
+          currentAuthEmail: auth.currentUser?.email ?? null,
           tenantIdFromContext: tid,
-          "roleFromUsers/{uid}": userDocRole ?? null,
-          "roleFromUserTenants/{uid}_{tenantId}": utRole ?? null,
-          canManageInvoices,
-          planPermissionsResolved: permSnap.exists() ? { ...(permData ?? {}) } : null,
+          roleFromUsersDoc: userDocRole ?? null,
+          roleFromUserTenantsDoc: utRole ?? null,
+          planPermissionsObject: permSnap.exists() ? { ...(permData ?? {}) } : null,
+          resolvedCanInvoices: canInvoicesResolved,
+          allowCreateInvoice_uiFromSnapshot: allowCreateFromSnapshot,
+          uiRenderingGate: {
+            tenantCtxLoading,
+            roleFromTenantContext: role ?? null,
+            isAdminFromContext: isAdminCtx,
+            isAdminFromUserTenantsRead: isAdminUt,
+            isAdminCombined: isAdminCombined,
+            addButtonFormula:
+              "!tenantCtxLoading && isAdminOrOwner(role||membershipUt) && invoicePermResolved && invoiceCreateAllowed",
+          },
+          firestoreCreateRule:
+            "(hasTenantAccess(tenantId)||hasTenantAccessLegacy()) && isAdminOrOwner(tenantId) && tenantPlanAllowsInvoiceCreate(tenantId) — no API for manual addDoc",
           _paths: {
             usersDoc: `users/${uid}`,
             userTenantsDoc: `userTenants/${utPath}`,
@@ -143,6 +158,8 @@ export default function InvoicesPage() {
         });
 
         if (!alive) return;
+
+        setResolvedCanInvoices(canInvoicesResolved);
 
         if (!isAdminCombined) {
           setInvoiceCreateAllowed(false);
@@ -156,17 +173,19 @@ export default function InvoicesPage() {
         console.warn(
           "[portal/invoices][perm] permission snapshot read failed — failing open for Add Invoice UI; Firestore rules still enforce create",
           {
-            "auth.currentUser.uid": auth.currentUser?.uid ?? null,
-            "auth.currentUser.email": auth.currentUser?.email ?? null,
+            currentAuthUid: auth.currentUser?.uid ?? null,
+            currentAuthEmail: auth.currentUser?.email ?? null,
             tenantIdFromContext: tid,
-            "roleFromUsers/{uid}": null,
-            "roleFromUserTenants/{uid}_{tenantId}": null,
-            canManageInvoices: true,
-            planPermissionsResolved: null,
+            roleFromUsersDoc: null,
+            roleFromUserTenantsDoc: null,
+            planPermissionsObject: null,
+            resolvedCanInvoices: null,
+            allowCreateInvoice_uiFromSnapshot: true,
             error: e,
           }
         );
         if (alive) {
+          setResolvedCanInvoices(null);
           setInvoiceCreateAllowed(true);
           setInvoicePermResolved(true);
         }
@@ -180,6 +199,24 @@ export default function InvoicesPage() {
 
   const canUseAddInvoice =
     !tenantCtxLoading && isAdminOrOwner && invoicePermResolved && invoiceCreateAllowed;
+
+  const createChainTraceRef = useRef<Record<string, unknown>>({});
+  createChainTraceRef.current = {
+    currentAuthUid: auth.currentUser?.uid ?? null,
+    currentAuthEmail: auth.currentUser?.email ?? null,
+    tenantIdFromContext: tenant?.id ?? null,
+    ui_rendering_gate_factors: {
+      tenantCtxLoading,
+      roleFromTenantContext: role ?? null,
+      membershipRoleFromUserTenants: membershipRoleFromUt ?? null,
+      isAdminOrOwnerCombined: isAdminOrOwner,
+      invoicePermResolved,
+      invoiceCreateAllowedFromPlan: invoiceCreateAllowed,
+      resolvedCanInvoices,
+    },
+    formSubmitGate_allowCreateInvoice: canUseAddInvoice,
+    backendPath: "Direct Firestore addDoc → tenants/{tenantId}/invoices (no REST API)",
+  };
 
   useEffect(() => {
     if (!invoicePermResolved) return;
@@ -283,11 +320,9 @@ export default function InvoicesPage() {
       const invoiceCount = invoices.length + 1;
       const invoiceNumber = `INV-${String(invoiceCount).padStart(4, "0")}`;
 
-      console.info("[portal/invoices][perm] addDoc submit", {
-        "auth.currentUser.uid": auth.currentUser?.uid ?? null,
-        "auth.currentUser.email": auth.currentUser?.email ?? null,
-        tenantIdFromContext: tenant.id,
-        canManageInvoices: canUseAddInvoice,
+      console.info("[portal/invoices][perm] addDoc submit (Firestore write)", {
+        ...createChainTraceRef.current,
+        formSubmitGatePassed: canUseAddInvoice,
       });
 
       await addDoc(collection(db, "tenants", tenant.id, "invoices"), {
@@ -316,13 +351,11 @@ export default function InvoicesPage() {
     } catch (err) {
       const code = err && typeof err === "object" && "code" in err ? String((err as { code?: string }).code) : "";
       const message = err instanceof Error ? err.message : String(err);
-      console.error("[portal/invoices][perm] addDoc failed", {
+      console.error("[portal/invoices][perm] addDoc failed (likely Firestore rules if permission-denied)", {
         code,
         message,
-        "auth.currentUser.uid": auth.currentUser?.uid ?? null,
-        "auth.currentUser.email": auth.currentUser?.email ?? null,
-        tenantIdFromContext: tenant?.id,
-        canManageInvoices: canUseAddInvoice,
+        ...createChainTraceRef.current,
+        formSubmitGateWas: canUseAddInvoice,
         err,
       });
       setFormError(
