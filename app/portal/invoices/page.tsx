@@ -124,26 +124,22 @@ export default function InvoicesPage() {
           setMembershipRoleFromUt(utRole);
         }
 
-        console.info("[portal/invoices][perm]", {
-          uid,
-          tenantId: tid,
-          userTenantsDocPath: `userTenants/${utPath}`,
-          userDocRoleFromUsersCollection: userDocRole,
-          userTenantsDocExists: utSnap.exists(),
-          membershipRoleFromUserTenants: utRole,
-          tenantContextRole: role,
-          isAdminOrOwnerFromContext: isAdminCtx,
-          isAdminOrOwnerFromUserTenantsDoc: isAdminUt,
-          isAdminOrOwnerCombined: isAdminCombined,
-          billingPlanIdResolved: planId,
-          planPermissionsDocPath: `tenants/${tid}/planPermissions/${planId}`,
-          planPermissionsExists: permSnap.exists(),
-          planPermissionsData: permData ?? null,
-          canInvoicesField: permData && "canInvoices" in permData ? permData.canInvoices : "(no field)",
-          canInvoicesResolvedForUi: canInvoicesResolved,
-          tenantCtxLoading,
-          finalUiCanUseAddInvoice:
-            !tenantCtxLoading && isAdminCombined && canInvoicesResolved,
+        const canManageInvoices =
+          !tenantCtxLoading && isAdminCombined && canInvoicesResolved;
+
+        console.info("[portal/invoices][perm] runtime identity + invoice gate", {
+          "auth.currentUser.uid": auth.currentUser?.uid ?? null,
+          "auth.currentUser.email": auth.currentUser?.email ?? null,
+          tenantIdFromContext: tid,
+          "roleFromUsers/{uid}": userDocRole ?? null,
+          "roleFromUserTenants/{uid}_{tenantId}": utRole ?? null,
+          canManageInvoices,
+          planPermissionsResolved: permSnap.exists() ? { ...(permData ?? {}) } : null,
+          _paths: {
+            usersDoc: `users/${uid}`,
+            userTenantsDoc: `userTenants/${utPath}`,
+            planPermissionsDoc: `tenants/${tid}/planPermissions/${planId}`,
+          },
         });
 
         if (!alive) return;
@@ -159,7 +155,16 @@ export default function InvoicesPage() {
       } catch (e) {
         console.warn(
           "[portal/invoices][perm] permission snapshot read failed — failing open for Add Invoice UI; Firestore rules still enforce create",
-          e
+          {
+            "auth.currentUser.uid": auth.currentUser?.uid ?? null,
+            "auth.currentUser.email": auth.currentUser?.email ?? null,
+            tenantIdFromContext: tid,
+            "roleFromUsers/{uid}": null,
+            "roleFromUserTenants/{uid}_{tenantId}": null,
+            canManageInvoices: true,
+            planPermissionsResolved: null,
+            error: e,
+          }
         );
         if (alive) {
           setInvoiceCreateAllowed(true);
@@ -279,12 +284,10 @@ export default function InvoicesPage() {
       const invoiceNumber = `INV-${String(invoiceCount).padStart(4, "0")}`;
 
       console.info("[portal/invoices][perm] addDoc submit", {
-        uid: user?.uid,
-        tenantId: tenant.id,
-        canUseAddInvoice,
-        tenantContextRole: role,
-        membershipRoleFromUt,
-        billingPlanId,
+        "auth.currentUser.uid": auth.currentUser?.uid ?? null,
+        "auth.currentUser.email": auth.currentUser?.email ?? null,
+        tenantIdFromContext: tenant.id,
+        canManageInvoices: canUseAddInvoice,
       });
 
       await addDoc(collection(db, "tenants", tenant.id, "invoices"), {
@@ -316,11 +319,10 @@ export default function InvoicesPage() {
       console.error("[portal/invoices][perm] addDoc failed", {
         code,
         message,
-        uid: user?.uid,
-        tenantId: tenant?.id,
-        tenantContextRole: role,
-        membershipRoleFromUt,
-        billingPlanId,
+        "auth.currentUser.uid": auth.currentUser?.uid ?? null,
+        "auth.currentUser.email": auth.currentUser?.email ?? null,
+        tenantIdFromContext: tenant?.id,
+        canManageInvoices: canUseAddInvoice,
         err,
       });
       setFormError(
