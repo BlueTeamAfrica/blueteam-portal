@@ -42,6 +42,11 @@ export async function assertStaffCanManageInvoices(uid: string, tenantId: string
   throw Object.assign(new Error("Not authorized"), { status: 403 });
 }
 
+/** Same staff gate as invoicing (owner/admin for tenant). */
+export async function assertStaffCanManageServices(uid: string, tenantId: string): Promise<void> {
+  await assertStaffCanManageInvoices(uid, tenantId);
+}
+
 export async function assertTenantAllowsInvoiceCreate(tenantId: string): Promise<void> {
   const db = adminDb();
   const tSnap = await db.collection("tenants").doc(tenantId).get();

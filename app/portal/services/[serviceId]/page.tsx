@@ -49,6 +49,11 @@ type Service = {
   categoryLabel?: string;
   clientId?: string;
   clientName?: string;
+  clientActionRequired?: boolean;
+  clientActionStatus?: "pending" | "resolved" | string;
+  clientActionMessage?: string | null;
+  clientActionRequestedAt?: Timestamp | null;
+  clientActionResolvedAt?: Timestamp | null;
   projectId?: string;
   projectName?: string;
   subscriptionId?: string;
@@ -234,6 +239,12 @@ export default function PortalServiceDetailPage() {
   const [healthUpdateLoading, setHealthUpdateLoading] = useState<boolean>(false);
   const [healthUpdateError, setHealthUpdateError] = useState<string | null>(null);
 
+  const [clientInputMessage, setClientInputMessage] = useState("");
+  const [clientInputSaving, setClientInputSaving] = useState(false);
+  const [clientInputError, setClientInputError] = useState<string | null>(null);
+  const [clientInputNotice, setClientInputNotice] = useState<string | null>(null);
+  const [resolveClientInputLoading, setResolveClientInputLoading] = useState(false);
+
   // Billing editing state (portal admins/owners only)
   const canEditBilling = role === "admin" || role === "owner";
   const [billingType, setBillingType] = useState<BillingType>("none");
@@ -364,6 +375,12 @@ export default function PortalServiceDetailPage() {
   }, [service, canEditHealth]);
 
   useEffect(() => {
+    if (!service || !canEditHealth) return;
+    const m = service.clientActionMessage;
+    setClientInputMessage(typeof m === "string" ? m : "");
+  }, [service?.clientActionMessage, service?.clientActionStatus, canEditHealth]);
+
+  useEffect(() => {
     if (!service) return;
     if (!canEditBilling) return;
     const bt = (service.billingType ?? "one_time") as BillingType;
@@ -445,6 +462,87 @@ export default function PortalServiceDetailPage() {
       setHealthUpdateError(msg);
     } finally {
       setHealthUpdateLoading(false);
+    }
+  }
+
+  async function handleRequestClientInput(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setClientInputSaving(true);
+    setClientInputError(null);
+    setClientInputNotice(null);
+    try {
+      const tid = tenant?.id;
+      const sid = serviceId;
+      if (!user || !tid || !sid) {
+        setClientInputError("Missing tenant or service.");
+        return;
+      }
+      if (!isCanonicalClientId(service?.clientId)) {
+        setClientInputError("Link a canonical client to this service before requesting input.");
+        return;
+      }
+      const token = await user.getIdToken();
+      const res = await fetch(`/api/services/${encodeURIComponent(sid)}/request-client-input`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ tenantId: tid, message: clientInputMessage }),
+      });
+      const data = (await res.json().catch(() => ({}))) as { error?: string; emailSent?: boolean };
+      if (!res.ok) {
+        setClientInputError(data.error ?? "Request failed.");
+        return;
+      }
+      setClientInputNotice(
+        data.emailSent
+          ? "Client input requested. In-app notifications updated; email sent (once per request spell)."
+          : "Client input requested. In-app notifications updated."
+      );
+      const ref = doc(db, "tenants", tid, "services", sid);
+      const snap = await getDoc(ref);
+      if (snap.exists()) setService(snap.data() as Service);
+    } catch (err) {
+      setClientInputError((err as { message?: string }).message ?? "Request failed.");
+    } finally {
+      setClientInputSaving(false);
+    }
+  }
+
+  async function handleResolveClientInput() {
+    setResolveClientInputLoading(true);
+    setClientInputError(null);
+    setClientInputNotice(null);
+    try {
+      const tid = tenant?.id;
+      const sid = serviceId;
+      if (!user || !tid || !sid) {
+        setClientInputError("Missing tenant or service.");
+        return;
+      }
+      const token = await user.getIdToken();
+      const res = await fetch(`/api/services/${encodeURIComponent(sid)}/resolve-client-input`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ tenantId: tid }),
+      });
+      const data = (await res.json().catch(() => ({}))) as { error?: string };
+      if (!res.ok) {
+        setClientInputError(data.error ?? "Could not resolve.");
+        return;
+      }
+      setClientInputNotice("Marked resolved. Related client notifications were archived.");
+      const ref = doc(db, "tenants", tid, "services", sid);
+      const snap = await getDoc(ref);
+      if (snap.exists()) setService(snap.data() as Service);
+    } catch (err) {
+      setClientInputError((err as { message?: string }).message ?? "Could not resolve.");
+    } finally {
+      setResolveClientInputLoading(false);
     }
   }
 
@@ -935,6 +1033,97 @@ export default function PortalServiceDetailPage() {
               </form>
             ) : null}
           </div>
+
+          {canEditHealth ? (
+            <div className="mt-6">
+              <h3 className="text-[#0F172A] font-semibold">Client input request</h3>
+              <p className="mt-1 text-xs text-slate-600 max-w-2xl leading-relaxed">
+                Notify linked client users in-app (and email once per request spell when the client record has an email).
+                Edits while still pending update the same notification — no duplicate spam.
+              </p>
+              <div className="mt-3 bg-slate-50 rounded-xl p-4 border border-slate-100 flex flex-wrap items-center gap-2">
+                <span className="text-xs font-medium text-slate-500 uppercase tracking-wide">Status</span>
+                {service.clientActionRequired && service.clientActionStatus === "pending" ? (
+                  <span className="inline-flex px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-900">
+                    Pending client input
+                  </span>
+                ) : service.clientActionStatus === "resolved" ? (
+                  <span className="inline-flex px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-200 text-slate-700">
+                    Resolved
+                  </span>
+                ) : (
+                  <span className="inline-flex px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-600">
+                    None active
+                  </span>
+                )}
+                {service.clientActionRequestedAt ? (
+                  <span className="text-xs text-slate-500">
+                    Requested {formatDateTime(service.clientActionRequestedAt)}
+                  </span>
+                ) : null}
+                {service.clientActionResolvedAt ? (
+                  <span className="text-xs text-slate-500">
+                    Resolved {formatDateTime(service.clientActionResolvedAt)}
+                  </span>
+                ) : null}
+              </div>
+
+              {clientInputError ? (
+                <div className="mt-3 bg-rose-50 border border-rose-200 rounded-xl p-3">
+                  <p className="text-rose-700 text-sm break-words">{clientInputError}</p>
+                </div>
+              ) : null}
+              {clientInputNotice ? (
+                <div className="mt-3 bg-emerald-50 border border-emerald-200 rounded-xl p-3">
+                  <p className="text-emerald-900 text-sm break-words">{clientInputNotice}</p>
+                </div>
+              ) : null}
+
+              <form onSubmit={handleRequestClientInput} className="mt-4">
+                <div className="bg-white rounded-xl border border-slate-200 p-4 space-y-3">
+                  <div>
+                    <label htmlFor="client-input-message" className="block text-xs font-medium text-slate-600">
+                      Instructions for the client
+                    </label>
+                    <textarea
+                      id="client-input-message"
+                      value={clientInputMessage}
+                      onChange={(e) => setClientInputMessage(e.target.value)}
+                      rows={4}
+                      required
+                      className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-[#0F172A] focus:outline-none focus:ring-2 focus:ring-indigo-200"
+                      placeholder="What do you need from them? Be specific."
+                    />
+                  </div>
+                  <div className="flex flex-wrap items-center gap-3 justify-end">
+                    <button
+                      type="submit"
+                      disabled={clientInputSaving || !isCanonicalClientId(service.clientId)}
+                      className="px-4 py-2 rounded-lg bg-indigo-600 text-white text-sm font-medium hover:bg-indigo-500 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+                    >
+                      {clientInputSaving ? "Saving…" : "Request / update client input"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void handleResolveClientInput()}
+                      disabled={
+                        resolveClientInputLoading ||
+                        !(service.clientActionRequired && service.clientActionStatus === "pending")
+                      }
+                      className="px-4 py-2 rounded-lg border border-slate-200 bg-white text-[#0F172A] text-sm font-medium hover:bg-slate-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {resolveClientInputLoading ? "Working…" : "Mark resolved"}
+                    </button>
+                  </div>
+                  {!isCanonicalClientId(service.clientId) ? (
+                    <p className="text-xs text-amber-800">
+                      Set a canonical client on this service before requesting input.
+                    </p>
+                  ) : null}
+                </div>
+              </form>
+            </div>
+          ) : null}
 
           <div className="mt-6">
             <h3 className="text-[#0F172A] font-semibold">Billing</h3>

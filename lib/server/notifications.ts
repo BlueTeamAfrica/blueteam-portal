@@ -23,6 +23,8 @@ export type NotificationInput = {
   entityId?: string;
   actionUrl?: string;
   dedupeKey: string;
+  /** On update, reset to unread (rolling notifications after archive or message refresh). */
+  forceUnreadOnUpdate?: boolean;
 };
 
 /** Firestore document id: safe segment (no `/`). */
@@ -43,12 +45,17 @@ export async function upsertNotification(input: NotificationInput): Promise<stri
   const snap = await ref.get();
 
   if (snap.exists) {
-    await ref.update({
+    const patch: Record<string, unknown> = {
       title: input.title,
       body: input.body,
       actionUrl: input.actionUrl ?? null,
       updatedAt: now,
-    });
+    };
+    if (input.forceUnreadOnUpdate) {
+      patch.status = "unread";
+      patch.readAt = null;
+    }
+    await ref.update(patch);
     return docId;
   }
 

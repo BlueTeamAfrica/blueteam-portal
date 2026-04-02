@@ -53,7 +53,8 @@ export default function NotificationsList({
       const q1 = userNotificationsFeedQuery(tenantId, uid, 50);
       const q2 = roleNotificationsFeedQuery(tenantId, roleLower, clientId, 50);
       const [s1, s2] = await Promise.all([getDocs(q1), getDocs(q2)]);
-      const rows1: NotificationRow[] = s1.docs.map((d) => {
+      const rows1: NotificationRow[] = s1.docs
+        .map((d) => {
         const x = d.data() as {
           title?: string;
           body?: string;
@@ -69,8 +70,10 @@ export default function NotificationsList({
           actionUrl: x.actionUrl ?? null,
           createdAt: x.createdAt ?? null,
         };
-      });
-      const rows2: NotificationRow[] = s2.docs.map((d) => {
+      })
+        .filter((r) => r.status !== "archived");
+      const rows2: NotificationRow[] = s2.docs
+        .map((d) => {
         const x = d.data() as {
           title?: string;
           body?: string;
@@ -86,7 +89,8 @@ export default function NotificationsList({
           actionUrl: x.actionUrl ?? null,
           createdAt: x.createdAt ?? null,
         };
-      });
+      })
+        .filter((r) => r.status !== "archived");
       setItems(mergeFeeds(rows1, rows2));
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to load notifications");

@@ -31,6 +31,11 @@ type Service = {
   renewalDate?: Timestamp;
   clientId?: string;
   clientName?: string;
+  clientActionRequired?: boolean;
+  clientActionStatus?: "pending" | "resolved" | string;
+  clientActionMessage?: string | null;
+  clientActionRequestedAt?: Timestamp | null;
+  clientActionResolvedAt?: Timestamp | null;
   projectId?: string;
   projectName?: string;
   updatedAt?: Timestamp;
@@ -243,14 +248,23 @@ export default function ClientServiceDetailPage() {
 
   const healthNormalized = normalizeHealth(service.health ?? "");
   const isWaitingClient = healthNormalized === "waiting_client";
+  const structuredInputPending =
+    service.clientActionRequired === true && service.clientActionStatus === "pending";
   const summaryText = (service.operationalSummary ?? service.description ?? "").trim() || "—";
 
   const nextActionText = service.nextAction?.trim() ?? "";
-  const nextPrimaryLine = isWaitingClient
-    ? nextActionText
-      ? `We need ${nextActionText} from you`
-      : "We need your input to continue"
-    : nextActionText || "No next step scheduled";
+  const instructionBody =
+    structuredInputPending && service.clientActionMessage?.trim()
+      ? service.clientActionMessage.trim()
+      : null;
+
+  const nextPrimaryLine = structuredInputPending
+    ? instructionBody ?? (nextActionText ? `We need ${nextActionText} from you` : "We need your input to continue")
+    : isWaitingClient
+      ? nextActionText
+        ? `We need ${nextActionText} from you`
+        : "We need your input to continue"
+      : nextActionText || "No next step scheduled";
 
   const nextDueFormatted = service.nextActionDue ? formatDate(service.nextActionDue ?? null) : null;
   const billingTypeLower = (service.billingType ?? "").toLowerCase();
@@ -322,18 +336,52 @@ export default function ClientServiceDetailPage() {
           <p className="mt-3 text-slate-600 text-sm break-words">{summaryText}</p>
         </div>
 
-        {isWaitingClient ? (
-          <div className="bg-indigo-50 border border-indigo-100 rounded-2xl p-4 md:p-5">
+        {structuredInputPending || isWaitingClient ? (
+          <div
+            className={`rounded-2xl p-4 md:p-5 border ${
+              structuredInputPending
+                ? "bg-amber-50 border-amber-200"
+                : "bg-indigo-50 border-indigo-100"
+            }`}
+          >
             <div className="flex items-start gap-3">
               <div
-                className="shrink-0 flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-600/10 text-indigo-900"
+                className={`shrink-0 flex h-10 w-10 items-center justify-center rounded-xl text-lg ${
+                  structuredInputPending ? "bg-amber-500/15 text-amber-950" : "bg-indigo-600/10 text-indigo-900"
+                }`}
                 aria-hidden
               >
                 ⚠️
               </div>
               <div className="min-w-0 flex-1">
-                <p className="text-[#0F172A] font-extrabold text-sm sm:text-base break-words">Action needed from you</p>
-                <p className="mt-1 text-sm text-indigo-900/80 break-words">{nextPrimaryLine}</p>
+                <p className="text-[#0F172A] font-extrabold text-sm sm:text-base break-words">
+                  {structuredInputPending ? "Your input is required" : "Action needed from you"}
+                </p>
+                {instructionBody ? (
+                  <p className="mt-2 text-sm text-[#0F172A]/90 whitespace-pre-wrap break-words leading-relaxed">
+                    {instructionBody}
+                  </p>
+                ) : (
+                  <p
+                    className={`mt-1 text-sm break-words ${
+                      structuredInputPending ? "text-amber-950/85" : "text-indigo-900/80"
+                    }`}
+                  >
+                    {nextPrimaryLine}
+                  </p>
+                )}
+                {structuredInputPending && service.clientActionRequestedAt ? (
+                  <p className="mt-2 text-[11px] text-slate-600">
+                    Requested {formatDateTime(service.clientActionRequestedAt)}
+                  </p>
+                ) : null}
+                <p className="mt-3 text-xs text-slate-700">
+                  Reply via{" "}
+                  <Link href="/client/support" className="font-semibold text-indigo-700 hover:underline">
+                    support
+                  </Link>{" "}
+                  or your usual contact so we can continue this service.
+                </p>
               </div>
             </div>
           </div>
@@ -382,9 +430,17 @@ export default function ClientServiceDetailPage() {
             <p className="mt-1 text-sm sm:text-base font-semibold text-[#0F172A] break-words">{nextPrimaryLine}</p>
             <p className="mt-2 text-xs text-slate-500">{nextDueLine}</p>
           </div>
-          {isWaitingClient ? (
-            <p className="mt-3 text-xs text-indigo-800/80 bg-indigo-50 border border-indigo-100 rounded-xl p-3">
-              Reply to this so we can move the service forward.
+          {structuredInputPending || isWaitingClient ? (
+            <p
+              className={`mt-3 text-xs rounded-xl p-3 border ${
+                structuredInputPending
+                  ? "text-amber-950/90 bg-amber-50 border-amber-100"
+                  : "text-indigo-800/80 bg-indigo-50 border-indigo-100"
+              }`}
+            >
+              {structuredInputPending
+                ? "Please provide what was requested above so your team can proceed."
+                : "Reply to this so we can move the service forward."}
             </p>
           ) : null}
         </div>
