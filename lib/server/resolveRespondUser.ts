@@ -1,4 +1,5 @@
 import "server-only";
+import type { Firestore } from "firebase-admin/firestore";
 import { adminDb } from "@/lib/firebaseAdmin";
 
 export type ResolvedRespondUser = {
@@ -24,6 +25,9 @@ export type ResolveRespondUserTrace = {
   usersDocExists: boolean;
   usersDocTenantId?: string | null;
   usersDocRole?: string | null;
+  usersDocClientId?: string | null;
+  /** True when clientId was taken from users/{uid} because userTenants had none. */
+  clientIdMergedFromUsers?: boolean;
   resolvedSource?: ResolvedRespondUser["source"];
   resolvedRole?: string | null;
 };
@@ -64,6 +68,56 @@ function attachSource(
 }
 
 /**
+ * userTenants often has role "client" without clientId; portal source of truth is users/{uid}.clientId.
+ */
+async function mergeClientIdFromUsersDocIfNeeded(
+  db: Firestore,
+  uid: string,
+  tenantId: string,
+  user: ResolvedRespondUser,
+  trace: ResolveRespondUserTrace,
+  push: (s: string) => void
+): Promise<ResolvedRespondUser> {
+  if (user.role !== "client") return user;
+  if ((user.clientId ?? "").trim()) return user;
+
+  const snap = await db.collection("users").doc(uid).get();
+  if (!snap.exists) {
+    push("merge_clientId:users_doc_missing");
+    return user;
+  }
+  const u = snap.data() as { tenantId?: string; clientId?: unknown; role?: string };
+  const uTenant = String(u.tenantId ?? "").trim();
+  if (uTenant !== tenantId) {
+    push(`merge_clientId:users_tenant_mismatch want=${tenantId} got=${uTenant || "empty"}`);
+    return user;
+  }
+  const fromUsers = u.clientId != null ? String(u.clientId).trim() : "";
+  if (!fromUsers) {
+    push("merge_clientId:users_doc_has_no_clientId");
+    return user;
+  }
+  trace.usersDocClientId = fromUsers;
+  trace.clientIdMergedFromUsers = true;
+  push("merge_clientId:applied_from_users_doc");
+  return { ...user, clientId: fromUsers };
+}
+
+async function attachSourceAndMergeClientId(
+  db: Firestore,
+  uid: string,
+  tenantId: string,
+  trace: ResolveRespondUserTrace,
+  push: (s: string) => void,
+  parsed: Omit<ResolvedRespondUser, "source">,
+  source: ResolvedRespondUser["source"]
+): Promise<ResolvedRespondUser> {
+  let user = attachSource(parsed, source);
+  user = await mergeClientIdFromUsersDocIfNeeded(db, uid, tenantId, user, trace, push);
+  return user;
+}
+
+/**
  * Resolves portal user for client service respond: owner | admin | client.
  * Does not assume a single userTenants document id or field naming.
  */
@@ -101,9 +155,17 @@ export async function resolveRespondUser(
     if ("ok" in parsed) {
       push("composite_uid_tenant:accepted");
       trace.resolvedSource = "userTenants_composite";
-      trace.resolvedRole = parsed.ok.role;
-      const user = attachSource(parsed.ok, "userTenants_composite");
-      console.log("[resolveRespondUser]", { ...trace, found: "composite_uid_tenant" });
+      const user = await attachSourceAndMergeClientId(
+        db,
+        uid,
+        tenantId,
+        trace,
+        push,
+        parsed.ok,
+        "userTenants_composite"
+      );
+      trace.resolvedRole = user.role;
+      console.log("[resolveRespondUser]", { ...trace, found: "composite_uid_tenant", clientId: user.clientId });
       return { user, trace };
     }
     trace.compositeSkipReason = parsed.fail;
@@ -124,9 +186,17 @@ export async function resolveRespondUser(
         trace.compositeDocId = compositeIdAlt;
         trace.compositeSkipReason = undefined;
         trace.resolvedSource = "userTenants_composite";
-        trace.resolvedRole = parsed.ok.role;
-        const user = attachSource(parsed.ok, "userTenants_composite");
-        console.log("[resolveRespondUser]", { ...trace, found: "composite_tenant_uid" });
+        const user = await attachSourceAndMergeClientId(
+          db,
+          uid,
+          tenantId,
+          trace,
+          push,
+          parsed.ok,
+          "userTenants_composite"
+        );
+        trace.resolvedRole = user.role;
+        console.log("[resolveRespondUser]", { ...trace, found: "composite_tenant_uid", clientId: user.clientId });
         return { user, trace };
       }
       push(`composite_tenant_uid:skipped(${parsed.fail})`);
@@ -150,9 +220,18 @@ export async function resolveRespondUser(
       if ("ok" in parsed) {
         push("query_userId+tenant:accepted");
         trace.resolvedSource = "userTenants_query";
-        trace.resolvedRole = parsed.ok.role;
-        console.log("[resolveRespondUser]", { ...trace, found: "query_userId_tenant", docId: d.id });
-        return { user: attachSource(parsed.ok, "userTenants_query"), trace };
+        const user = await attachSourceAndMergeClientId(
+          db,
+          uid,
+          tenantId,
+          trace,
+          push,
+          parsed.ok,
+          "userTenants_query"
+        );
+        trace.resolvedRole = user.role;
+        console.log("[resolveRespondUser]", { ...trace, found: "query_userId_tenant", docId: d.id, clientId: user.clientId });
+        return { user, trace };
       }
     }
   } catch (e) {
@@ -173,9 +252,18 @@ export async function resolveRespondUser(
       if ("ok" in parsed) {
         push("query_uid+tenant:accepted");
         trace.resolvedSource = "userTenants_query";
-        trace.resolvedRole = parsed.ok.role;
-        console.log("[resolveRespondUser]", { ...trace, found: "query_uid_tenant", docId: d.id });
-        return { user: attachSource(parsed.ok, "userTenants_query"), trace };
+        const user = await attachSourceAndMergeClientId(
+          db,
+          uid,
+          tenantId,
+          trace,
+          push,
+          parsed.ok,
+          "userTenants_query"
+        );
+        trace.resolvedRole = user.role;
+        console.log("[resolveRespondUser]", { ...trace, found: "query_uid_tenant", docId: d.id, clientId: user.clientId });
+        return { user, trace };
       }
     }
   } catch (e) {
@@ -196,9 +284,18 @@ export async function resolveRespondUser(
       if ("ok" in parsed) {
         push(`scan_userId:accepted doc:${d.id}`);
         trace.resolvedSource = "userTenants_query";
-        trace.resolvedRole = parsed.ok.role;
-        console.log("[resolveRespondUser]", { ...trace, found: "scan_userId", docId: d.id });
-        return { user: attachSource(parsed.ok, "userTenants_query"), trace };
+        const user = await attachSourceAndMergeClientId(
+          db,
+          uid,
+          tenantId,
+          trace,
+          push,
+          parsed.ok,
+          "userTenants_query"
+        );
+        trace.resolvedRole = user.role;
+        console.log("[resolveRespondUser]", { ...trace, found: "scan_userId", docId: d.id, clientId: user.clientId });
+        return { user, trace };
       }
     }
     push(`scan_userId:no_valid(${byUserId.size} docs)`);
@@ -218,9 +315,18 @@ export async function resolveRespondUser(
       if ("ok" in parsed) {
         push(`scan_uid_field:accepted doc:${d.id}`);
         trace.resolvedSource = "userTenants_query";
-        trace.resolvedRole = parsed.ok.role;
-        console.log("[resolveRespondUser]", { ...trace, found: "scan_uid", docId: d.id });
-        return { user: attachSource(parsed.ok, "userTenants_query"), trace };
+        const user = await attachSourceAndMergeClientId(
+          db,
+          uid,
+          tenantId,
+          trace,
+          push,
+          parsed.ok,
+          "userTenants_query"
+        );
+        trace.resolvedRole = user.role;
+        console.log("[resolveRespondUser]", { ...trace, found: "scan_uid", docId: d.id, clientId: user.clientId });
+        return { user, trace };
       }
     }
     push(`scan_uid_field:no_valid(${byUidField.size} docs)`);
@@ -232,18 +338,27 @@ export async function resolveRespondUser(
   const userSnap = await db.collection("users").doc(uid).get();
   trace.usersDocExists = userSnap.exists;
   if (userSnap.exists) {
-    const u = userSnap.data() as { tenantId?: string; role?: string; clientId?: string };
+    const u = userSnap.data() as { tenantId?: string; role?: string; clientId?: unknown };
     trace.usersDocTenantId = u.tenantId ?? null;
     trace.usersDocRole = u.role ?? null;
+    trace.usersDocClientId = u.clientId != null ? String(u.clientId).trim() || null : null;
     if (u.tenantId === tenantId) {
       const roleLower = String(u.role ?? "").toLowerCase();
       if (["owner", "admin", "client"].includes(roleLower)) {
         const cid = u.clientId != null ? String(u.clientId).trim() : "";
         push("users_doc:accepted");
         trace.resolvedSource = "users_doc";
-        trace.resolvedRole = roleLower;
-        const user = attachSource({ role: roleLower, clientId: cid || null }, "users_doc");
-        console.log("[resolveRespondUser]", { ...trace, found: "users_doc" });
+        const user = await attachSourceAndMergeClientId(
+          db,
+          uid,
+          tenantId,
+          trace,
+          push,
+          { role: roleLower, clientId: cid || null },
+          "users_doc"
+        );
+        trace.resolvedRole = user.role;
+        console.log("[resolveRespondUser]", { ...trace, found: "users_doc", clientId: user.clientId });
         return { user, trace };
       }
       push(`users_doc:role_not_allowed:${roleLower || "empty"}`);
