@@ -119,24 +119,28 @@ service cloud.firestore {
     }
 
     // Effective role for notification recipient checks (userTenants map preferred, else users/{uid} for this tenant).
+    // Expression-only (no let/if); repeated get() paths are required by the rules language here.
     function notificationEffectiveRoleLower(tenantId) {
-      let utPath = /databases/$(db)/documents/userTenants/$(request.auth.uid + "_" + tenantId);
-      if (exists(utPath) && get(utPath).data.role is string) {
-        return get(utPath).data.role.lower();
-      }
-      let uPath = /databases/$(db)/documents/users/$(request.auth.uid);
-      if (exists(uPath)
-          && get(uPath).data.tenantId == tenantId
-          && get(uPath).data.role is string) {
-        return get(uPath).data.role.lower();
-      }
-      return null;
+      return (
+        exists(/databases/$(db)/documents/userTenants/$(request.auth.uid + "_" + tenantId))
+        && get(/databases/$(db)/documents/userTenants/$(request.auth.uid + "_" + tenantId)).data.role is string
+      )
+        ? get(/databases/$(db)/documents/userTenants/$(request.auth.uid + "_" + tenantId)).data.role.lower()
+        : (
+            exists(/databases/$(db)/documents/users/$(request.auth.uid))
+            && get(/databases/$(db)/documents/users/$(request.auth.uid)).data.tenantId == tenantId
+            && get(/databases/$(db)/documents/users/$(request.auth.uid)).data.role is string
+          )
+          ? get(/databases/$(db)/documents/users/$(request.auth.uid)).data.role.lower()
+          : null;
     }
 
     function notificationEffectiveClientId(tenantId) {
-      let uPath = /databases/$(db)/documents/users/$(request.auth.uid);
-      return exists(uPath) && get(uPath).data.tenantId == tenantId
-        ? get(uPath).data.clientId
+      return (
+        exists(/databases/$(db)/documents/users/$(request.auth.uid))
+        && get(/databases/$(db)/documents/users/$(request.auth.uid)).data.tenantId == tenantId
+      )
+        ? get(/databases/$(db)/documents/users/$(request.auth.uid)).data.clientId
         : null;
     }
 
