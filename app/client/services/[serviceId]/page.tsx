@@ -141,6 +141,22 @@ function canAccessClientServiceArea(role: string | undefined, clientId: string |
   return false;
 }
 
+/** Matches POST /api/client/services/.../respond: client must match service; staff same tenant. */
+function canSubmitServiceClientResponse(
+  role: string | undefined,
+  clientId: string | undefined,
+  service: Service
+): boolean {
+  const r = (role ?? "").toLowerCase();
+  if (r === "owner" || r === "admin") return true;
+  if (r === "client") {
+    const u = (clientId ?? "").trim();
+    const s = (service.clientId ?? "").trim();
+    return Boolean(u && s && u === s);
+  }
+  return true;
+}
+
 export default function ClientServiceDetailPage() {
   const { user } = useAuth();
   const { tenant, role, clientId } = useTenant();
@@ -260,11 +276,16 @@ export default function ClientServiceDetailPage() {
     e.preventDefault();
     const tid = tenant?.id;
     if (!user || !tid || !serviceId || !responseText.trim()) return;
+    if (service && !canSubmitServiceClientResponse(role, clientId, service)) {
+      setRespondError("You do not have permission to respond to this request.");
+      return;
+    }
     setRespondLoading(true);
     setRespondError(null);
     setRespondSuccess(null);
     try {
       const token = await user.getIdToken();
+      console.log("Submitting response...", { serviceId, tenantId: tid, role });
       const res = await fetch(`/api/client/services/${encodeURIComponent(serviceId)}/respond`, {
         method: "POST",
         headers: {
@@ -336,7 +357,8 @@ export default function ClientServiceDetailPage() {
   const healthNormalized = normalizeHealth(service.health ?? "");
   const isWaitingClient = healthNormalized === "waiting_client";
   const structuredInputPending =
-    service.clientActionRequired === true && service.clientActionStatus === "pending";
+    service.clientActionRequired === true &&
+    String(service.clientActionStatus ?? "").toLowerCase() === "pending";
   const summaryText = (service.operationalSummary ?? service.description ?? "").trim() || "—";
 
   const nextActionText = service.nextAction?.trim() ?? "";

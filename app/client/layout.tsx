@@ -91,6 +91,11 @@ function NavLinks({
 
 const DRAWER_WIDTH_CLASS = "w-[82vw] max-w-[320px]";
 
+function isClientShellRole(role: string | undefined) {
+  const r = (role ?? "").toLowerCase();
+  return r === "client" || r === "owner" || r === "admin";
+}
+
 export default function ClientLayout({
   children,
 }: {
@@ -129,7 +134,7 @@ export default function ClientLayout({
       return;
     }
     if (loading) return;
-    if (role !== "client") {
+    if (!isClientShellRole(role)) {
       router.replace("/portal");
     }
   }, [authLoading, user, role, loading, router]);
@@ -137,7 +142,7 @@ export default function ClientLayout({
   useEffect(() => {
     let alive = true;
     async function loadCounts() {
-      if (!tenant?.id || !clientId || role !== "client") return;
+      if (!tenant?.id || !clientId || (role ?? "").toLowerCase() !== "client") return;
       const tid = tenant.id;
       const cid = clientId;
       try {
@@ -245,7 +250,7 @@ export default function ClientLayout({
       <p className="text-[#0F172A]">Loading…</p>
     </div>
   );
-  if (role !== "client") return null;
+  if (!isClientShellRole(role)) return null;
 
   return (
     <div className="min-h-screen w-full max-w-[100vw] bg-[#F8FAFC] flex flex-col md:flex-row overflow-x-hidden">
