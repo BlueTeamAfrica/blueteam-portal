@@ -140,10 +140,30 @@ service cloud.firestore {
         : null;
     }
 
+    // Notifications: tenant membership for reads/list/count — must not require only userTenants/{uid}_{tenantId},
+    // because portal staff and clients often resolve from users/{uid} (tenantId + role) like invoice APIs.
+    function notificationTenantMembership(tenantId) {
+      return request.auth != null
+        && (
+          hasTenantAccess(tenantId)
+          || hasTenantAccessLegacy()
+          || isClientWithTenantAccess(tenantId)
+          || (
+            exists(/databases/$(db)/documents/users/$(request.auth.uid))
+            && get(/databases/$(db)/documents/users/$(request.auth.uid)).data.tenantId == tenantId
+            && get(/databases/$(db)/documents/users/$(request.auth.uid)).data.role is string
+            && (
+              get(/databases/$(db)/documents/users/$(request.auth.uid)).data.role.lower() == "client"
+              || get(/databases/$(db)/documents/users/$(request.auth.uid)).data.role.lower() == "admin"
+              || get(/databases/$(db)/documents/users/$(request.auth.uid)).data.role.lower() == "owner"
+            )
+          )
+        );
+    }
+
     function canReadPortalNotification(tenantId) {
       return request.auth != null
-        && resource.data.tenantId == tenantId
-        && (hasTenantAccess(tenantId) || hasTenantAccessLegacy() || isClientWithTenantAccess(tenantId))
+        && notificationTenantMembership(tenantId)
         && (
           (resource.data.targetType == "user" && resource.data.targetUserId == request.auth.uid)
           || (
