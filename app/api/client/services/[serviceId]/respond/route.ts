@@ -2,62 +2,10 @@ import "server-only";
 import { NextResponse } from "next/server";
 import { adminDb } from "@/lib/firebaseAdmin";
 import { requireBearerUid } from "@/lib/server/resolvePortalUser";
+import { resolveRespondUser } from "@/lib/server/resolveRespondUser";
 import { submitClientServiceResponse } from "@/lib/server/serviceClientInput";
 
 const FORBIDDEN_RESPOND = "You do not have permission to respond to this request.";
-
-type ResolvedRespondUser = {
-  role: string;
-  clientId: string | null;
-};
-
-function isActiveMembershipStatus(status: unknown): boolean {
-  if (status == null || status === "") return true;
-  return String(status).toLowerCase() === "active";
-}
-
-/**
- * Resolves caller for this tenant: owner | admin | client (lowercased roles).
- * Uses userTenants map, legacy userTenants query, then users/{uid} — with
- * case-insensitive active status so admin/owner are not dropped vs invoice-only checks.
- */
-async function resolveRespondUser(uid: string, tenantId: string): Promise<ResolvedRespondUser | null> {
-  const db = adminDb();
-  const memId = `${uid}_${tenantId}`;
-  const memSnap = await db.collection("userTenants").doc(memId).get();
-  if (memSnap.exists) {
-    const mem = memSnap.data() as { role?: string; status?: string; clientId?: string };
-    if (!isActiveMembershipStatus(mem.status)) return null;
-    const roleLower = String(mem.role ?? "").toLowerCase();
-    if (!["owner", "admin", "client"].includes(roleLower)) return null;
-    const cid = mem.clientId != null ? String(mem.clientId).trim() : "";
-    return { role: roleLower, clientId: cid || null };
-  }
-
-  const legacySnap = await db
-    .collection("userTenants")
-    .where("userId", "==", uid)
-    .where("tenantId", "==", tenantId)
-    .limit(1)
-    .get();
-  if (!legacySnap.empty) {
-    const mem = legacySnap.docs[0].data() as { role?: string; status?: string; clientId?: string };
-    if (!isActiveMembershipStatus(mem.status)) return null;
-    const roleLower = String(mem.role ?? "").toLowerCase();
-    if (!["owner", "admin", "client"].includes(roleLower)) return null;
-    const cid = mem.clientId != null ? String(mem.clientId).trim() : "";
-    return { role: roleLower, clientId: cid || null };
-  }
-
-  const userSnap = await db.collection("users").doc(uid).get();
-  if (!userSnap.exists) return null;
-  const u = userSnap.data() as { tenantId?: string; role?: string; clientId?: string };
-  if (u.tenantId !== tenantId) return null;
-  const roleLower = String(u.role ?? "").toLowerCase();
-  if (!["owner", "admin", "client"].includes(roleLower)) return null;
-  const cid = u.clientId != null ? String(u.clientId).trim() : "";
-  return { role: roleLower, clientId: cid || null };
-}
 
 export async function POST(
   req: Request,
@@ -101,17 +49,19 @@ export async function POST(
       return NextResponse.json({ error: FORBIDDEN_RESPOND, debug }, { status: 403 });
     }
 
-    const resolved = await resolveRespondUser(uid, tenantId);
+    const { user: resolved, trace: membershipTrace } = await resolveRespondUser(uid, tenantId);
     const role = resolved?.role ?? null;
     const userClientId = resolved?.clientId ?? null;
 
-    console.log({
+    console.log("[respond] membership", {
       uid,
       role,
       userClientId,
       serviceClientId,
       tenantId,
       serviceTenantId,
+      membershipSource: resolved?.source,
+      membershipTrace,
     });
 
     const debugBase = {
@@ -124,7 +74,7 @@ export async function POST(
     };
 
     if (!resolved) {
-      const debug = { ...debugBase, reason: "not_member_of_tenant" as const };
+      const debug = { ...debugBase, reason: "not_member_of_tenant" as const, membershipTrace };
       console.log("[respond] forbidden", debug);
       return NextResponse.json({ error: FORBIDDEN_RESPOND, debug }, { status: 403 });
     }
