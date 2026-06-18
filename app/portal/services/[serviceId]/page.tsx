@@ -887,24 +887,6 @@ export default function PortalServiceDetailPage() {
             </div>
           </div>
 
-          <div className="mt-6">
-            <h3 className="text-[#0F172A] font-semibold">Recent activity</h3>
-            <div className="mt-3 bg-slate-50 rounded-xl p-4 border border-slate-100">
-              <p className="text-slate-600 text-sm break-words">
-                V1 summary uses timestamps only. Add a `recentActivity` array to the service doc later to show check-ins, incidents, renewals, and notes.
-              </p>
-              <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <p className="text-xs text-slate-500">Created</p>
-                  <p className="text-sm text-[#0F172A]">{formatDateTime(service.createdAt)}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-slate-500">Updated</p>
-                  <p className="text-sm text-[#0F172A]">{formatDateTime(service.updatedAt)}</p>
-                </div>
-              </div>
-            </div>
-          </div>
 
           <div className="mt-6">
             <h3 className="text-[#0F172A] font-semibold">Health</h3>
