@@ -317,6 +317,7 @@ export default function InvoicesPage() {
     }
 
     setSubmitting(true);
+    setSubmitError(null);
     try {
       const invoiceCount = invoices.length + 1;
       const invoiceNumber = `INV-${String(invoiceCount).padStart(4, "0")}`;
@@ -728,6 +729,11 @@ export default function InvoicesPage() {
               className="w-full px-3 py-2 rounded-lg border border-slate-200 text-[#0F172A] placeholder:text-slate-400 resize-none"
             />
           </div>
+          {submitError && (
+            <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+              {submitError}
+            </p>
+          )}
           <div className="flex flex-wrap gap-2">
             <button
               type="submit"
