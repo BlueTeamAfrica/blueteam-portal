@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 234" width="32" height="37" role="img" aria-label="Blue Team Africa">
+  <title>Blue Team Africa</title>
+  <defs>
+    <clipPath id="sc">
+      <path d="M 100,228 C 38,200 7,166 7,120 L 7,28 Q 7,7 28,7 L 172,7 Q 193,7 193,28 L 193,120 C 193,166 162,200 100,228 Z"/>
+    </clipPath>
+  </defs>
+  <path d="M 100,228 C 38,200 7,166 7,120 L 7,28 Q 7,7 28,7 L 172,7 Q 193,7 193,28 L 193,120 C 193,166 162,200 100,228 Z" fill="#1e3a8a"/>
+  <g transform="translate(26,28) scale(0.74)" clip-path="url(#sc)">
+    <path d="M 62,5 C 40,5 2,55 2,68 C 2,82 14,92 22,97 L 38,99 C 55,104 72,101 84,110 C 93,117 92,133 92,162 C 93,175 102,195 122,212 C 134,206 146,190 157,174 C 168,157 172,140 176,128 C 180,116 183,106 197,75 C 194,64 188,61 182,58 C 170,52 155,45 140,20 C 130,8 108,2 84,2 C 74,2 66,3 62,5 Z" fill="#ffffff"/>
+  </g>
+</svg>

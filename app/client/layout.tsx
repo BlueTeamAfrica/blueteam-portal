@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
+import Image from "next/image";
 import { signOut } from "firebase/auth";
 import { auth, db } from "@/lib/firebase";
 import { useAuth } from "@/lib/authContext";
@@ -267,7 +268,7 @@ export default function ClientLayout({
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
             </svg>
           </button>
-          <span className="text-[#0F172A] font-semibold truncate">Client Portal</span>
+          <Image src="/logo-wordmark-compact.svg" alt="Blue Team Africa" width={150} height={22} className="h-[22px] w-auto" priority />
         </div>
         <div className="flex items-center gap-1 shrink-0">
           {tenant?.id ? (
@@ -303,7 +304,7 @@ export default function ClientLayout({
             aria-label="Navigation menu"
           >
             <div className="p-4 border-b border-slate-200 flex items-center justify-between gap-2 min-w-0">
-              <h2 className="text-[#0F172A] font-semibold truncate">Client Portal</h2>
+              <Image src="/logo-wordmark-compact.svg" alt="Blue Team Africa" width={160} height={23} className="h-[23px] w-auto" priority />
               <button
                 type="button"
                 onClick={() => setDrawerOpen(false)}
@@ -333,7 +334,10 @@ export default function ClientLayout({
       {/* Desktop sidebar */}
       <aside className="hidden md:flex md:flex-col w-64 bg-white border-r border-slate-200 shrink-0">
         <div className="p-6 border-b border-slate-200">
-          <h2 className="text-[#0F172A] font-semibold break-words">Client Portal</h2>
+          <div className="flex flex-col gap-1">
+            <Image src="/logo-wordmark-compact.svg" alt="Blue Team Africa" width={176} height={25} className="h-[25px] w-auto" priority />
+            <span className="text-[10px] text-slate-400 tracking-[0.18em] uppercase">Client Portal</span>
+          </div>
         </div>
         <nav className="p-3 space-y-1">
           <NavLinks
