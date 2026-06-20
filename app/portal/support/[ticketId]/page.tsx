@@ -4,7 +4,6 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import {
-  addDoc,
   collection,
   doc,
   getDoc,
@@ -143,20 +142,21 @@ export default function PortalTicketDetailPage() {
 
     setSending(true);
     try {
-      const ticketRef = doc(db, "tenants", tenantId, "tickets", ticketId);
-      await addDoc(collection(ticketRef, "replies"), {
-        message: reply.trim(),
-        authorRole: "admin",
-        authorUid: user.uid,
-        createdAt: serverTimestamp(),
+      const token = await user.getIdToken();
+      const res = await fetch(`/api/tickets/${ticketId}/replies`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ tenantId, message: reply.trim() }),
       });
-      await updateDoc(ticketRef, {
-        updatedAt: serverTimestamp(),
-        status: (ticket?.status ?? "open") === "open" ? "in_progress" : (ticket?.status ?? "open"),
-      });
-
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(typeof data.error === "string" ? data.error : "Could not send reply");
+      }
       setReply("");
-
+      const ticketRef = doc(db, "tenants", tenantId, "tickets", ticketId);
       const repliesSnap = await getDocs(
         query(collection(ticketRef, "replies"), orderBy("createdAt", "asc"))
       );
