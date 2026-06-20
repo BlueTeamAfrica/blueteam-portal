@@ -3,11 +3,11 @@ import { NextResponse } from "next/server";
 import { adminAuth, adminDb } from "@/lib/firebaseAdmin";
 import { renderInvoicePdfBuffer } from "@/lib/server/renderInvoicePdf";
 
-function formatDueDate(value: unknown): string {
+function formatDate(value: unknown): string {
   if (value == null) return "—";
   if (typeof value === "string") return value;
   if (typeof (value as { toDate?: () => Date }).toDate === "function") {
-    return (value as { toDate: () => Date }).toDate().toLocaleDateString();
+    return (value as { toDate: () => Date }).toDate().toISOString().split("T")[0];
   }
   return String(value);
 }
@@ -69,12 +69,13 @@ export async function GET(
       clientId?: string;
       clientName?: string;
       invoiceNumber?: string;
+      createdAt?: unknown;
       status?: string;
       amount?: number;
       currency?: string;
       dueDate?: unknown;
       notes?: string;
-      lineItems?: Array<{ description: string; amount: number; currency?: string }>;
+      lineItems?: Array<{ description: string; qty?: number; unitPrice?: number; amount: number; currency?: string }>;
     };
 
     if (role === "client") {
@@ -104,10 +105,11 @@ export async function GET(
         invoiceNumber: invData.invoiceNumber ?? `INV-${invoiceId.slice(0, 8)}`,
         clientId: invData.clientId,
         clientName: invData.clientName ?? clientData.name,
+        createdAt: formatDate(invData.createdAt),
         status: invData.status,
         amount: invData.amount,
         currency: invData.currency,
-        dueDate: formatDueDate(invData.dueDate),
+        dueDate: formatDate(invData.dueDate),
         notes: invData.notes,
         lineItems: invData.lineItems,
       },
