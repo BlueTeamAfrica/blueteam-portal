@@ -34,12 +34,12 @@ export async function resolvePortalUserForTenant(
     if (mem.status != null && mem.status !== "active") return null;
     const roleLower = String(mem.role ?? "").toLowerCase();
     if (!["owner", "admin", "client"].includes(roleLower)) return null;
-    return {
-      uid,
-      tenantId,
-      roleLower,
-      clientId: mem.clientId ?? null,
-    };
+    let clientId = mem.clientId ?? null;
+    if (roleLower === "client" && !clientId) {
+      const userSnap = await db.collection("users").doc(uid).get();
+      clientId = (userSnap.data() as { clientId?: string } | undefined)?.clientId ?? null;
+    }
+    return { uid, tenantId, roleLower, clientId };
   }
 
   const legacySnap = await db
@@ -53,12 +53,12 @@ export async function resolvePortalUserForTenant(
     if (mem.status != null && mem.status !== "active") return null;
     const roleLower = String(mem.role ?? "").toLowerCase();
     if (!["owner", "admin", "client"].includes(roleLower)) return null;
-    return {
-      uid,
-      tenantId,
-      roleLower,
-      clientId: mem.clientId ?? null,
-    };
+    let clientId = mem.clientId ?? null;
+    if (roleLower === "client" && !clientId) {
+      const userSnap = await db.collection("users").doc(uid).get();
+      clientId = (userSnap.data() as { clientId?: string } | undefined)?.clientId ?? null;
+    }
+    return { uid, tenantId, roleLower, clientId };
   }
 
   const userSnap = await db.collection("users").doc(uid).get();
