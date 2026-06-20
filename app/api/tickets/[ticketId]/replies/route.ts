@@ -44,6 +44,7 @@ export async function POST(
       clientId?: string;
       status?: string;
       subject?: string;
+      firstReplyAt?: unknown;
     };
 
     if (!isStaff) {
@@ -63,6 +64,9 @@ export async function POST(
     const ticketPatch: Record<string, unknown> = { updatedAt: FieldValue.serverTimestamp() };
     if (isStaff && (ticket.status ?? "open") === "open") {
       ticketPatch.status = "in_progress";
+    }
+    if (isStaff && !ticket.firstReplyAt) {
+      ticketPatch.firstReplyAt = FieldValue.serverTimestamp();
     }
     await ticketRef.update(ticketPatch);
 

@@ -30,6 +30,8 @@ type Kpis = {
   activeSubscriptions: number;
   unpaidInvoices: number;
   unpaidInvoiceValue: number;
+  mrr: number;
+  avgResponseHours: number | null;
 };
 
 type RecentActivityItem = {
@@ -155,6 +157,11 @@ export default function PortalPage() {
           )
         );
         const activeSubscriptions = activeSubsSnap.size;
+        let mrr = 0;
+        activeSubsSnap.forEach((doc) => {
+          const p = (doc.data() as { price?: unknown }).price;
+          mrr += typeof p === "number" ? p : 0;
+        });
 
         // Unpaid invoices (count + value) + sample for recent activity
         const unpaidQuery = query(
@@ -497,6 +504,28 @@ export default function PortalPage() {
         const previewLimit = hasAnyAttention ? 5 : 3;
         const preview: ServicePreviewRow[] = sortRows.slice(0, previewLimit).map(({ _due, _prio, ...rest }) => rest);
 
+        // Avg first response time
+        const ticketsSnap = await getDocs(collection(db, "tenants", tenantId as string, "tickets"));
+        let totalResponseMs = 0;
+        let responseCount = 0;
+        ticketsSnap.forEach((doc) => {
+          const data = doc.data() as {
+            createdAt?: { toDate?: () => Date };
+            firstReplyAt?: { toDate?: () => Date };
+          };
+          if (!data.createdAt || typeof data.createdAt.toDate !== "function") return;
+          if (!data.firstReplyAt || typeof data.firstReplyAt.toDate !== "function") return;
+          const created = data.createdAt.toDate().getTime();
+          const replied = data.firstReplyAt.toDate().getTime();
+          if (replied > created) {
+            totalResponseMs += replied - created;
+            responseCount += 1;
+          }
+        });
+        const avgResponseHours = responseCount > 0
+          ? totalResponseMs / responseCount / (1000 * 60 * 60)
+          : null;
+
         setKpis({
           totalClients,
           totalProjects,
@@ -504,6 +533,8 @@ export default function PortalPage() {
           activeSubscriptions,
           unpaidInvoices,
           unpaidInvoiceValue,
+          mrr,
+          avgResponseHours,
         });
         setUnpaidInvoicePreview(unpaidSample);
         setRecentActivity(sortedActivity);
@@ -613,6 +644,20 @@ export default function PortalPage() {
               <p className="text-sm text-slate-500 mt-1">
                 Value: ${kpis.unpaidInvoiceValue.toLocaleString()}
               </p>
+            </div>
+            <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4 md:p-5 max-w-full">
+              <div className="text-xs uppercase tracking-wide text-slate-500">Monthly Recurring Revenue</div>
+              <div className="text-2xl font-semibold text-[#0F172A] mt-1">
+                ${kpis.mrr.toLocaleString()}<span className="text-base font-normal text-slate-500">/mo</span>
+              </div>
+            </div>
+            <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4 md:p-5 max-w-full">
+              <div className="text-xs uppercase tracking-wide text-slate-500">Avg First Response</div>
+              <div className="text-2xl font-semibold text-[#0F172A] mt-1">
+                {kpis.avgResponseHours !== null
+                  ? <>{kpis.avgResponseHours.toFixed(1)}<span className="text-base font-normal text-slate-500">h</span></>
+                  : <span className="text-base font-normal text-slate-400">No data yet</span>}
+              </div>
             </div>
           </div>
         )}
