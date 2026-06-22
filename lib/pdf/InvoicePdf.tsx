@@ -1,4 +1,5 @@
 import React from "react";
+import path from "path";
 import {
   Document,
   Page,
@@ -12,13 +13,13 @@ import {
   Font,
 } from "@react-pdf/renderer";
 
+const fontsDir = path.join(process.cwd(), "public", "fonts");
+
 Font.register({
   family: "Poppins",
   fonts: [
-    { src: "https://fonts.gstatic.com/s/poppins/v21/pxiEyp8kv8JHgFVrJJfecg.woff2", fontWeight: 400 },
-    { src: "https://fonts.gstatic.com/s/poppins/v21/pxiByp8kv8JHgFVrLGT9Z1xlFQ.woff2", fontWeight: 500 },
-    { src: "https://fonts.gstatic.com/s/poppins/v21/pxiByp8kv8JHgFVrLEj6Z1xlFQ.woff2", fontWeight: 600 },
-    { src: "https://fonts.gstatic.com/s/poppins/v21/pxiByp8kv8JHgFVrLCz7Z1xlFQ.woff2", fontWeight: 700 },
+    { src: path.join(fontsDir, "poppins-regular.woff2"), fontWeight: 400 },
+    { src: path.join(fontsDir, "poppins-semibold.woff2"), fontWeight: 600 },
   ],
 });
 
