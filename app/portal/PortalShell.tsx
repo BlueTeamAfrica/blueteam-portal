@@ -94,7 +94,7 @@ export default function PortalShell({ children }: { children: React.ReactNode })
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
             </svg>
           </button>
-          <Image src="/logo.png" alt="Blue Team Africa" width={36} height={36} className="h-9 w-auto" priority />
+          <Image src="/logo-icon.png" alt="Blue Team Africa" width={40} height={40} className="h-10 w-auto" priority />
         </div>
         <div className="flex items-center gap-1 shrink-0">
           {tenant?.id ? (
@@ -130,7 +130,7 @@ export default function PortalShell({ children }: { children: React.ReactNode })
             aria-label="Navigation menu"
           >
             <div className="p-4 border-b border-slate-200 flex items-center justify-between gap-2 min-w-0">
-              <Image src="/logo.png" alt="Blue Team Africa" width={36} height={36} className="h-9 w-auto" priority />
+              <Image src="/logo-icon.png" alt="Blue Team Africa" width={40} height={40} className="h-10 w-auto" priority />
               <button
                 type="button"
                 onClick={() => setDrawerOpen(false)}
@@ -156,7 +156,7 @@ export default function PortalShell({ children }: { children: React.ReactNode })
       {/* Desktop sidebar */}
       <aside className="hidden md:block w-64 bg-white border-r border-slate-200 shrink-0">
         <div className="p-6 border-b border-slate-200">
-          <Image src="/logo.png" alt="Blue Team Africa" width={48} height={48} className="h-12 w-auto" priority />
+          <Image src="/logo-icon.png" alt="Blue Team Africa" width={64} height={64} className="h-16 w-auto" priority />
         </div>
         <nav className="p-3 space-y-1">
           <NavLinks pathname={pathname} notificationCount={notificationCount} />
