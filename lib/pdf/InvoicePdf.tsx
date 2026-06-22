@@ -6,14 +6,12 @@ import {
   View,
   Text,
   StyleSheet,
-  Svg,
-  Path,
-  G,
-  Circle,
   Font,
+  Image,
 } from "@react-pdf/renderer";
 
 const fontsDir = path.join(process.cwd(), "public", "fonts");
+const LOGO_SRC = path.join(process.cwd(), "public", "logo-icon.png");
 
 Font.register({
   family: "Poppins",
@@ -65,23 +63,6 @@ function fmtDate(s: string): string {
   return `${d.getUTCDate()} ${months[d.getUTCMonth()]} ${d.getUTCFullYear()}`;
 }
 
-function ShieldMark() {
-  return (
-    <Svg width={30} height={35} viewBox="0 0 200 234">
-      <Path
-        d="M 100,228 C 38,200 7,166 7,120 L 7,28 Q 7,7 28,7 L 172,7 Q 193,7 193,28 L 193,120 C 193,166 162,200 100,228 Z"
-        fill="#1e3a8a"
-      />
-      <G transform="translate(26,28) scale(0.74)">
-        <Path
-          d="M 62,5 C 40,5 2,55 2,68 C 2,82 14,92 22,97 L 38,99 C 55,104 72,101 84,110 C 93,117 92,133 92,162 C 93,175 102,195 122,212 C 134,206 146,190 157,174 C 168,157 172,140 176,128 C 180,116 183,106 197,75 C 194,64 188,61 182,58 C 170,52 155,45 140,20 C 130,8 108,2 84,2 C 74,2 66,3 62,5 Z"
-          fill="#ffffff"
-        />
-      </G>
-      <Circle cx={142} cy={112} r={10} fill="#22d3ee" />
-    </Svg>
-  );
-}
 
 const styles = StyleSheet.create({
   page: {
@@ -258,7 +239,7 @@ export function InvoicePdf({ data }: { data: InvoicePdfData }) {
         {/* Header: logo left, Invoice right */}
         <View style={styles.header}>
           <View style={styles.logoRow}>
-            <ShieldMark />
+            <Image src={LOGO_SRC} style={{ width: 40, height: 40 }} />
             <View>
               <Text style={styles.companyName}>BLUE TEAM AFRICA</Text>
               <Text style={styles.companyTagline}>DIGITAL SOLUTIONS · EAST AFRICA</Text>
