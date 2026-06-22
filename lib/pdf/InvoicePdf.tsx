@@ -18,8 +18,8 @@ const fontsDir = path.join(process.cwd(), "public", "fonts");
 Font.register({
   family: "Poppins",
   fonts: [
-    { src: path.join(fontsDir, "poppins-regular.woff2"), fontWeight: 400 },
-    { src: path.join(fontsDir, "poppins-semibold.woff2"), fontWeight: 600 },
+    { src: path.join(fontsDir, "Poppins-Regular.ttf"), fontWeight: 400 },
+    { src: path.join(fontsDir, "Poppins-SemiBold.ttf"), fontWeight: 600 },
   ],
 });
 
