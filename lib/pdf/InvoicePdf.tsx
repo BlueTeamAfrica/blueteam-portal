@@ -28,6 +28,8 @@ const COMPANY = {
   address2: "Kigali, Rwanda",
   reg: "RDB Reg: 121861203",
   email: "contact@blueteamafrica.com",
+  phone1: "+250 798 973 375",
+  phone2: "+254 119 402 737",
 };
 
 const BANK = {
@@ -291,6 +293,8 @@ export function InvoicePdf({ data }: { data: InvoicePdfData }) {
             <Text style={styles.addrLine}>{COMPANY.address2}</Text>
             <Text style={styles.addrLine}>{COMPANY.reg}</Text>
             <Text style={styles.addrLine}>{COMPANY.email}</Text>
+            <Text style={styles.addrLine}>{COMPANY.phone1} (Rwanda)</Text>
+            <Text style={styles.addrLine}>{COMPANY.phone2} (Kenya)</Text>
           </View>
           <View style={styles.col}>
             <Text style={styles.addrHead}>Bill to</Text>
