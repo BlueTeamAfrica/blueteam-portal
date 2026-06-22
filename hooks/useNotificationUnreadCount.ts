@@ -14,7 +14,7 @@ export function useNotificationUnreadCount(
   const [count, setCount] = useState(0);
 
   useEffect(() => {
-    if (!tenantId || !user) {
+    if (!tenantId || !user || !role) {
       setCount(0);
       return;
     }
