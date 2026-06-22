@@ -19,7 +19,7 @@ type Invoice = {
   status?: string;
   amount?: number;
   currency?: string;
-  dueDate?: Timestamp;
+  dueDate?: string | Timestamp;
   notes?: string;
   source?: string;
 };
@@ -595,10 +595,10 @@ export default function InvoicesPage() {
     );
   }
 
-  function formatDate(ts?: Timestamp) {
+  function formatDate(ts?: string | Timestamp) {
     if (!ts) return "—";
-    const d = ts.toDate();
-    return d.toLocaleDateString();
+    const d = ts instanceof Timestamp ? ts.toDate() : new Date(ts);
+    return isNaN(d.getTime()) ? "—" : d.toLocaleDateString();
   }
 
   if (!user) return <p className="text-[#0F172A]">Please log in</p>;
