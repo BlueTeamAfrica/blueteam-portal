@@ -11,7 +11,7 @@ import {
 } from "@react-pdf/renderer";
 
 const fontsDir = path.join(process.cwd(), "public", "fonts");
-const LOGO_SRC = path.join(process.cwd(), "public", "logo-icon.png");
+const LOGO_SRC = path.join(process.cwd(), "public", "logo-full.png");
 
 Font.register({
   family: "Poppins",
@@ -239,7 +239,7 @@ export function InvoicePdf({ data }: { data: InvoicePdfData }) {
         {/* Header: logo left, Invoice right */}
         <View style={styles.header}>
           <View style={styles.logoRow}>
-            <Image src={LOGO_SRC} style={{ width: 40, height: 40 }} />
+            <Image src={LOGO_SRC} style={{ width: 120 }} />
             <View>
               <Text style={styles.companyName}>BLUE TEAM AFRICA</Text>
               <Text style={styles.companyTagline}>DIGITAL SOLUTIONS · EAST AFRICA</Text>
