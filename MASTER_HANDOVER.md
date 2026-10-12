@@ -363,7 +363,7 @@ Dashboard decrypts server-side only
 | **Owner/client** | **CERTAIN:** Owned by Blue Team Africa (Mohamed’s company). |
 | **Business context** | Lead generation for web design, hosting, ERP, CRM, mobile, cybersecurity in Rwanda/East Africa. |
 | **Why it exists** | Commercial presence separate from internal portal. |
-| **Relationships** | Monorepo includes copy of `blueteam-portal/` but **must not mix** portal code into marketing routes. Canonical portal is separate repo. |
+| **Relationships** | No portal code here — the nested `blueteam-portal/` copy was deliberately deleted. The portal lives only in the standalone repo `~/Documents/blueteam-portal`. |
 
 ## 2. Current State
 
@@ -394,7 +394,6 @@ Dashboard decrypts server-side only
 
 ### Technical debt
 
-- Two apps in one repo (marketing + portal copy) — easy to run commands from wrong directory.
 - `upstream` remote points to `blueTeamAfrica` typo repo — verify intentional.
 
 ## 3. Architecture
@@ -405,14 +404,6 @@ Dashboard decrypts server-side only
 | **Port** | 3000 (conflicts if portal also on 3000 — run one at a time) |
 | **Deploy** | Vercel; GitHub `BlueTeamAfrica/blueteam` |
 | **Leads** | Production: Firestore; dev: `data/leads.json` fallback documented in older status files |
-
-**Monorepo sync rule (`CLAUDE.md`)**
-
-```bash
-rsync -av --delete \
-  --exclude='.git' --exclude='node_modules' --exclude='.next' --exclude='.env.local' \
-  ./blueteam-portal/ ~/Documents/blueteam-portal/
-```
 
 ## 4. Product Decisions
 
@@ -428,14 +419,13 @@ rsync -av --delete \
 ## 6. Known Problems
 
 - Form 404 on Vercel documented in `FIX_FORM_ERROR_VERCEL.md`, `FIX_API_404.md` — check env + route deployment.
-- Running `npm run dev` at repo root vs `blueteam-portal/` causes confusion.
 - Large number of historical troubleshooting markdown files — trust **`CLAUDE.md`** and git over old urgency docs.
 
 ## 7. Roadmap State
 
 **Last git commits:** Portal client UX features mirrored from standalone portal (`7654bd4 feat(blueteam-portal): client portal UX...`).
 
-**Next:** Verify production contact form → Firestore; finish any remaining image 404s; keep portal sync via rsync + push to `blueteam-portal` repo.
+**Next:** Verify production contact form → Firestore; finish any remaining image 404s.
 
 ---
 
@@ -449,7 +439,7 @@ rsync -av --delete \
 | **Owner/client** | **CERTAIN:** Blue Team Africa internal product for **their** managed-service customers. |
 | **Business context** | Operational hub replacing spreadsheets/email for billing and service health. |
 | **Why it exists** | Separate from public site; multi-tenant B2B2C. |
-| **Relationships** | Firebase project `blueteam-portal`; optional copy in `blueteamafrica/blueteam-portal/`. |
+| **Relationships** | Firebase project `blueteam-portal`. Standalone repo at `~/Documents/blueteam-portal` is the only copy (the nested copy in `blueteamafrica` was deliberately deleted). |
 
 ## 2. Current State
 
@@ -463,7 +453,7 @@ rsync -av --delete \
 - PDF invoices (`@react-pdf/renderer`), nodemailer email, notification dedupe keys.
 - Client mobile-first card lists, Action Required dashboard card, support tickets.
 - `firestore.rules` + indexes in repo.
-- Canonical repo: `~/Documents/blueteam-portal` → **push here**, not only monorepo copy.
+- Repo: `~/Documents/blueteam-portal` (origin `BlueTeamAfrica/blueteam-portal`) — the only copy; push here.
 
 ### Partially completed
 
@@ -472,7 +462,6 @@ rsync -av --delete \
 
 ### Pending
 
-- Any uncommitted portal work in monorepo needs rsync to standalone + push.
 - Deploy rules/indexes after permission changes: `firebase deploy --only firestore:rules,firestore:indexes`.
 
 ### Technical debt
@@ -522,7 +511,6 @@ rsync -av --delete \
 | Invoice create denied for owner | Trace UI gate + `planPermissions` + rules `canInvoices` (**may be open**) |
 | `tenantContext.tsx` was `.ts` not `.tsx` | Historical build error — use `.tsx` for JSX |
 | `/dashboard/clients` vs `/portal/clients` | Early confusion — portal uses `/portal` not `/dashboard` |
-| **Do not** push portal only to monorepo | User rule: canonical `blueteam-portal` repo |
 | Firebase config in README contains real API keys | Rotate if repo is public |
 
 ## 7. Roadmap State
@@ -690,7 +678,7 @@ Derived from **repeated transcript patterns** (Apr–May 2026). Treat as operati
 
 - Run commands locally; don’t give up after one failure.
 - **Do not commit** unless explicitly asked.
-- **Do not push** portal fixes only to monorepo — use canonical `blueteam-portal` clone.
+- Portal work happens only in `~/Documents/blueteam-portal` — the nested copy in `blueteamafrica` was deliberately deleted; do not recreate it.
 - Minimize diff scope; match existing conventions.
 - Produce structured reports (numbered sections, file paths, priority lists) for audits.
 - Complete sentences; no engagement baiting.
@@ -705,7 +693,7 @@ When resuming after interruption, Claude should:
 
 - Read this file + project `CLAUDE.md` first.
 - `git status`, `git log -3`, and identify **uncommitted** work before new features.
-- Confirm **which repo** is canonical for the task (portal vs monorepo copy).
+- Confirm **which repo** the task belongs to (portal work: `~/Documents/blueteam-portal` only).
 
 ### 2. Label certainty
 
@@ -738,19 +726,7 @@ Check transcript-equivalent status for known open items:
 | Portal invoice | `planPermissions/{planId}.canInvoices`, rules line 128, UI gate files |
 | Deploy | `npm run build`, Vercel env, never commit `.env.local` |
 
-### 6. Sync workflow (portal)
-
-After editing `blueteamafrica/blueteam-portal/`:
-
-```bash
-rsync -av --delete \
-  --exclude='.git' --exclude='node_modules' --exclude='.next' --exclude='.env.local' \
-  ~/Documents/blueteamafrica/blueteam-portal/ ~/Documents/blueteam-portal/
-cd ~/Documents/blueteam-portal && npm run build
-# commit + push only when Mohamed asks
-```
-
-### 7. Secrets & safety
+### 6. Secrets & safety
 
 - Never commit `.env.local`, service account JSON, or API keys from README samples.
 - Rotate keys if exposed in chat or public README.
@@ -793,9 +769,8 @@ cd ~/Documents/blueteam-portal && npm run build
 
 | Path | Role |
 |------|------|
-| `CLAUDE.md` | Monorepo layout + sync |
+| `CLAUDE.md` | Repo layout |
 | `app/api/leads/route.ts` | Contact form |
-| `blueteam-portal/` | Portal copy (sync to standalone) |
 
 ---
 

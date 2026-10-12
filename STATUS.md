@@ -18,7 +18,7 @@ SaaS client portal for Blue Team Africa. Two surfaces in one codebase: `/portal`
 - **Multi-tenancy:** All data under `tenants/{tenantId}`. User membership via `userTenants/{uid}_{tenantId}`.
 - **Roles:** `admin`/`owner` → `/portal`, `client` → `/client/dashboard`
 - **Billing plans:** Gated via `lib/tenantBillingPlan.ts` — must stay in sync with `firestore.rules`
-- **Deploy:** Vercel (inferred), canonical repo is `~/Documents/blueteam-portal` — NOT just the monorepo copy
+- **Deploy:** Vercel (inferred). Repo is `~/Documents/blueteam-portal` — the only copy (the nested copy in `blueteamafrica` was deliberately deleted)
 
 ---
 
@@ -46,7 +46,7 @@ This was interrupted and not resolved as of last session.
 
 ## Critical rules
 
-- Always push changes to the **standalone `~/Documents/blueteam-portal` repo**, not only the monorepo copy
+- Commit and push portal changes in `~/Documents/blueteam-portal` only — do not recreate a copy inside `blueteamafrica`
 - `firestore.rules` must stay in sync with `lib/tenantBillingPlan.ts` — any plan resolution changes need both updated
 - Never commit `.env.local`
 - Deploy rules after changes: `firebase deploy --only firestore:rules,firestore:indexes`
