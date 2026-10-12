@@ -116,8 +116,8 @@ All files import `"server-only"`:
 - Never use admin label map in client-facing components
 
 ## Relation to Other Projects
-- Lives inside `blueteamafrica` monorepo as `blueteam-portal/` subdirectory
-- Standalone clone also maintained at `~/Documents/blueteam-portal` — sync with rsync after changes
+- Standalone repo at `~/Documents/blueteam-portal` (origin `BlueTeamAfrica/blueteam-portal`) — the only copy; commit and push here
+- The nested copy inside the `blueteamafrica` monorepo was deliberately deleted — do not recreate it or rsync into it
 - No dependency on `secure-reporter-*` codebases
 
 ## Open Threads
