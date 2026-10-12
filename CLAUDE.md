@@ -27,17 +27,16 @@ NEXT_PUBLIC_FIREBASE_PROJECT_ID=
 NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=
 NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=
 NEXT_PUBLIC_FIREBASE_APP_ID=
-FIREBASE_PROJECT_ID=
-FIREBASE_CLIENT_EMAIL=
-FIREBASE_PRIVATE_KEY=
+FIREBASE_ADMIN_SERVICE_ACCOUNT=   # full service-account JSON, one line (lib/firebaseAdmin.ts)
+CRON_SECRET=                      # required by /api/cron/*; sent as x-cron-secret or Bearer
 SMTP_HOST=
 SMTP_PORT=587
-SMTP_SECURE=false
-SMTP_USER=
+SMTP_SECURE=false                 # if unset, true only when port is 465
+SMTP_USER=                        # also used as the From address
 SMTP_PASS=
-NEXT_PUBLIC_PORTAL_URL=https://portal.blueteamafrica.com
+NEXT_PUBLIC_PORTAL_URL=https://portal.blueteamafrica.com   # PORTAL_BASE_URL is a fallback
 ```
-Run `node setup-env.js` to scaffold `.env.local` from template.
+Run `node setup-env.js` to scaffold `.env.local` (fills public Firebase config, leaves secrets blank; refuses to overwrite unless `--force`). This repo needs its own `.env.local` — it does not share the monorepo's. Set the same vars in Vercel.
 
 ## Auth & Role Routing
 - Firebase Email/Password only
