@@ -19,6 +19,8 @@
 .DS_Store
 *.pem
 GitHub token.rtf
+App_Pass.pdf
+app.rtf
 
 # debug
 npm-debug.log*
